@@ -1,21 +1,26 @@
+/**
+ * IVAC Login Assistant v2.3 - Bookmarklet Version
+ * Complete IVAC automation with hardcoded personal info
+ * Compatible with bookmarklet loader method
+ */
+
 (function() {
     'use strict';
 
     // Prevent multiple instances
-    if (window.ivacAssistantLoaded) {
+    if (window.IVACAssistantLoaded) {
         console.log('IVAC Assistant already loaded');
         return;
     }
-    window.ivacAssistantLoaded = true;
+    window.IVACAssistantLoaded = true;
 
     // Hardcoded personal info - MODIFY THESE VALUES AS NEEDED
     const PERSONAL_INFO = {
         full_name: 'NAJNEN SULTANA',
         email_name: 'najnensultana87@gmail.com',
         phone: '01889844184',
-        webfile_id: 'BGDCV0F0A525', // This will be synced from application info
+        webfile_id: 'BGDCV0F0A525',
 
-        // Family members - modify count and details as needed
         family: {
             1: {
                 name: 'MD PERVES',
@@ -40,25 +45,49 @@
         }
     };
 
-    // Hardcoded Cloudflare sitekey - modify as needed
+    // Hardcoded Cloudflare sitekeys
     const CLOUDFLARE_SITEKEYS = {
-    login: '0x4AAAAAABpNUpzYeppBoYpe',
-    booking: '0x4AAAAAABvQ3Mi6RktCuZ7P',
-    payment: '0x4AAAAAABvQ3Mi6RktCuZ7P'
-};
+        login: '0x4AAAAAABpNUpzYeppBoYpe',
+        booking: '0x4AAAAAABvQ3Mi6RktCuZ7P',
+        payment: '0x4AAAAAABvQ3Mi6RktCuZ7P'
+    };
 
-    // Wait for page to load completely
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initScript);
-    } else {
-        initScript();
-    }
+    // Global state objects
+    const loginState = {
+        accessToken: '',
+        refreshToken: '',
+        userInfo: null,
+        isLoggedIn: false
+    };
 
+    const bookingState = {
+        applicationInfo: null,
+        selectedCenter: null,
+        availableDates: [],
+        selectedDate: null,
+        selectedSlot: null,
+        isPurchaseFlow: false
+    };
+
+    const paymentData = {
+        paymentUrl: null,
+        appointmentDate: null,
+        appointmentTime: null
+    };
+
+    // Initialize script immediately (no DOMContentLoaded wait needed for bookmarklet)
     function initScript() {
-        setTimeout(createMainPanel, 2000);
+        // Small delay to ensure page is ready
+        setTimeout(createMainPanel, 500);
     }
 
     function createMainPanel() {
+        // Remove existing panel if any
+        const existing = document.getElementById('ivac-assistant-main');
+        if (existing) {
+            existing.remove();
+        }
+
         const container = document.createElement('div');
         container.id = 'ivac-assistant-main';
         container.style.cssText = `
@@ -123,7 +152,6 @@
                 </div>
             </div>
 
-            <!-- Tab Navigation -->
             <div id="tab-navigation" style="
                 background: #f8f9fa;
                 border-bottom: 1px solid #dee2e6;
@@ -164,23 +192,17 @@
             </div>
 
             <div id="panel-content" style="padding: 20px;">
-                <!-- Login Tab -->
                 <div id="login-tab" class="tab-content active">
                     ${createLoginTabContent()}
                 </div>
-
-                <!-- App Booking Tab -->
                 <div id="booking-tab" class="tab-content" style="display: none;">
                     ${createBookingTabContent()}
                 </div>
-
-                <!-- Payment Tab -->
                 <div id="payment-tab" class="tab-content" style="display: none;">
                     ${createPaymentTabContent()}
                 </div>
             </div>
 
-            <!-- Resize Handle -->
             <div id="resize-handle" style="
                 position: absolute;
                 bottom: 0;
@@ -195,95 +217,116 @@
 
         document.body.appendChild(container);
 
-        makeDraggable(container);
-        makeResizable(container);
+        // Setup all event listeners after DOM is ready
         setupEventListeners();
         setupTabSwitching();
+        makeDraggable(container);
+        makeResizable(container);
     }
 
     function createLoginTabContent() {
         return `
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #007bff;">
-                    <strong style="color: #007bff;">Personal Info (Hardcoded)</strong>
-                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                        <div>📝 Name: ${PERSONAL_INFO.full_name}</div>
-                        <div>📧 Email: ${PERSONAL_INFO.email_name}</div>
-                        <div>📱 Phone: ${PERSONAL_INFO.phone}</div>
-                    </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #e8f4fd; padding: 10px; border-radius: 6px; font-size: 12px;">
+                    <strong>📋 Instructions:</strong><br>
+                    1. Enter email/phone & OTP<br>
+                    2. Complete captcha<br>
+                    3. Click Login<br>
+                    4. Switch to App Booking tab
                 </div>
 
-                <!-- Login Captcha Section -->
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Cloudflare Sitekey
-                    </label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="login-sitekey" 
-                            value="${CLOUDFLARE_SITEKEYS.login}"
-                            style="
-                                flex: 1;
-                                padding: 10px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 12px;
-                            "
-                        />
-                        <button id="load-login-captcha-btn" style="
-                            padding: 10px 20px;
-                            background: #007bff;
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Email/Phone:</label>
+                    <input type="text" id="login-email" 
+                           value="${PERSONAL_INFO.email_name}" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" 
+                           placeholder="Enter email or phone">
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">OTP:</label>
+                        <input type="text" id="login-otp" 
+                               style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" 
+                               placeholder="Enter OTP">
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button id="send-otp-btn" style="
+                            padding: 8px 16px;
+                            background: #28a745;
                             color: white;
                             border: none;
                             border-radius: 4px;
                             cursor: pointer;
                             font-weight: bold;
-                            font-size: 12px;
                             white-space: nowrap;
-                        ">Load</button>
+                        ">Send OTP</button>
                     </div>
                 </div>
 
-                <!-- Login Captcha Container -->
-                <div id="login-captcha-container" style="
-                    min-height: 65px;
-                    border: 1px dashed #ced4da;
-                    border-radius: 4px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: #f8f9fa;
-                    padding: 10px;
-                ">
-                    <p style="color: #666; margin: 0; font-size: 12px;">Click "Load" to load captcha</p>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Cloudflare Sitekey:</label>
+                    <input type="text" id="login-sitekey" 
+                           value="${CLOUDFLARE_SITEKEYS.login}" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 11px;" 
+                           placeholder="Enter sitekey">
+                    <button id="load-login-captcha-btn" style="
+                        margin-top: 5px;
+                        padding: 6px 12px;
+                        background: #17a2b8;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">Load Captcha</button>
                 </div>
 
-                <!-- Hidden Token -->
-                <input type="hidden" id="login-captcha-token" />
+                <div id="login-captcha-container" style="margin: 10px 0;"></div>
+                <input type="hidden" id="login-captcha-token">
 
-                <!-- Login Button -->
-                <button id="login-btn" disabled style="
+                <button id="login-btn" style="
                     width: 100%;
-                    padding: 14px;
-                    background: #6c757d;
+                    padding: 12px;
+                    background: #007bff;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    cursor: not-allowed;
-                    font-weight: bold;
+                    cursor: pointer;
                     font-size: 14px;
-                    transition: background 0.3s;
-                ">Login to IVAC</button>
+                    font-weight: bold;
+                " disabled>Login</button>
 
-                <!-- Status Section -->
                 <div id="login-status" style="
-                    padding: 12px;
+                    padding: 10px;
                     border-radius: 4px;
                     font-size: 12px;
-                    background: #e7f3ff;
-                    border: 1px solid #b3d9ff;
-                    color: #004085;
-                ">
-                    Ready to login with your hardcoded personal info
+                    display: none;
+                "></div>
+
+                <div id="login-token-display" style="display: none; margin-top: 10px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Access Token:</label>
+                    <textarea id="login-access-token" readonly style="
+                        width: 100%;
+                        height: 60px;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        font-family: monospace;
+                        resize: vertical;
+                        box-sizing: border-box;
+                    "></textarea>
+                    <button id="copy-token-btn" style="
+                        margin-top: 5px;
+                        padding: 6px 12px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">Copy Token</button>
                 </div>
             </div>
         `;
@@ -291,444 +334,448 @@
 
     function createBookingTabContent() {
         return `
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #28a745;">
-                    <strong style="color: #28a745;">Booking Configuration</strong>
-                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                        Configure appointment booking settings
-                    </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #fff3cd; padding: 10px; border-radius: 6px; font-size: 12px;">
+                    <strong>📋 Instructions:</strong><br>
+                    1. Enter Access Token from Login<br>
+                    2. Load App Info & Select Center<br>
+                    3. Select Date & Time Slot<br>
+                    4. Complete Booking
                 </div>
 
-                <!-- Access Token -->
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Access Token
-                    </label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="booking-access-token" 
-                            placeholder="Paste your access token here"
-                            style="
-                                flex: 1;
-                                padding: 10px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 12px;
-                            "
-                        />
-                        <button id="load-booking-data-btn" style="
-                            padding: 10px 20px;
-                            background: #007bff;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-weight: bold;
-                            font-size: 12px;
-                            white-space: nowrap;
-                        ">Load Data</button>
-                    </div>
-                </div>
-
-                <!-- Application Info -->
-                <div id="booking-application-info" style="
-                    background: #fff3cd;
-                    border: 1px solid #ffc107;
-                    border-radius: 4px;
-                    padding: 12px;
-                    font-size: 12px;
-                    display: none;
-                ">
-                    <strong>Application Info:</strong>
-                    <div id="booking-app-details" style="margin-top: 8px;"></div>
-                </div>
-
-                <!-- Booking Configuration -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">Center</label>
-                        <select id="booking-center" style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid #ced4da;
-                            border-radius: 4px;
-                            font-size: 12px;
-                        ">
-                            <option value="">Select Center</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">Visa Type</label>
-                        <select id="booking-visa-type" style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid #ced4da;
-                            border-radius: 4px;
-                            font-size: 12px;
-                        ">
-                            <option value="">Select Visa Type</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Date Slots -->
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Available Date Slots
-                    </label>
-                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <button id="fetch-slots-btn" disabled style="
-                            flex: 1;
-                            padding: 10px;
-                            background: #6c757d;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: not-allowed;
-                            font-weight: bold;
-                            font-size: 12px;
-                        ">Fetch Slots</button>
-                        <button id="auto-select-first-btn" disabled style="
-                            flex: 1;
-                            padding: 10px;
-                            background: #6c757d;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: not-allowed;
-                            font-weight: bold;
-                            font-size: 12px;
-                        ">Auto First</button>
-                    </div>
-                    <select id="booking-date-slot" size="5" disabled style="
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Access Token:</label>
+                    <textarea id="booking-access-token" style="
                         width: 100%;
+                        height: 60px;
                         padding: 8px;
-                        border: 1px solid #ced4da;
+                        border: 1px solid #ccc;
                         border-radius: 4px;
-                        font-size: 12px;
-                    ">
-                        <option value="">No slots available</option>
-                    </select>
+                        font-size: 11px;
+                        font-family: monospace;
+                        resize: vertical;
+                        box-sizing: border-box;
+                    " placeholder="Paste access token from login"></textarea>
                 </div>
 
-                <!-- Time Slots -->
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Available Time Slots
-                    </label>
-                    <select id="booking-time-slot" size="5" disabled style="
-                        width: 100%;
-                        padding: 8px;
-                        border: 1px solid #ced4da;
-                        border-radius: 4px;
-                        font-size: 12px;
-                    ">
-                        <option value="">Select a date first</option>
-                    </select>
-                </div>
-
-                <!-- Booking Captcha Section -->
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Booking Captcha
-                    </label>
-                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <input type="text" id="booking-sitekey" 
-                            value="${CLOUDFLARE_SITEKEYS.booking}"
-                            style="
-                                flex: 1;
-                                padding: 10px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 12px;
-                            "
-                        />
-                        <button id="load-booking-captcha-btn" disabled style="
-                            padding: 10px 20px;
-                            background: #6c757d;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: not-allowed;
-                            font-weight: bold;
-                            font-size: 12px;
-                            white-space: nowrap;
-                        ">Load</button>
-                    </div>
-                    <div id="booking-captcha-container" style="
-                        min-height: 65px;
-                        border: 1px dashed #ced4da;
-                        border-radius: 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        background: #f8f9fa;
-                        padding: 10px;
-                    ">
-                        <p style="color: #666; margin: 0; font-size: 12px;">Select date & time first</p>
-                    </div>
-                    <input type="hidden" id="booking-captcha-token" />
-                </div>
-
-                <!-- Booking Button -->
-                <button id="book-appointment-btn" disabled style="
+                <button id="load-app-info-btn" style="
                     width: 100%;
-                    padding: 14px;
-                    background: #6c757d;
+                    padding: 10px;
+                    background: #17a2b8;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    cursor: not-allowed;
+                    cursor: pointer;
                     font-weight: bold;
-                    font-size: 14px;
-                    transition: background 0.3s;
-                ">Book Appointment</button>
+                ">Load Application Info</button>
 
-                <!-- Status Section -->
-                <div id="booking-status" style="
+                <div id="booking-center-section" style="display: none;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Select Visa Center:</label>
+                    <select id="booking-center-select" style="
+                        width: 100%;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        box-sizing: border-box;
+                    ">
+                        <option value="">Select a center...</option>
+                    </select>
+                </div>
+
+                <div id="booking-date-section" style="display: none;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Available Dates:</label>
+                    <select id="booking-date-select" style="
+                        width: 100%;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        box-sizing: border-box;
+                    " disabled>
+                        <option value="">Select a date...</option>
+                    </select>
+                </div>
+
+                <div id="booking-slot-section" style="display: none;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Available Slots:</label>
+                    <select id="booking-slot-select" style="
+                        width: 100%;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        box-sizing: border-box;
+                    " disabled>
+                        <option value="">Select a slot...</option>
+                    </select>
+                </div>
+
+                <div id="booking-captcha-section" style="display: none;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Cloudflare Sitekey:</label>
+                    <input type="text" id="booking-sitekey" 
+                           value="${CLOUDFLARE_SITEKEYS.booking}" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 11px;">
+                    <button id="load-booking-captcha-btn" style="
+                        margin-top: 5px;
+                        padding: 6px 12px;
+                        background: #17a2b8;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">Load Booking Captcha</button>
+                    <div id="booking-captcha-container" style="margin: 10px 0;"></div>
+                    <input type="hidden" id="booking-captcha-token">
+                </div>
+
+                <button id="book-appointment-btn" style="
+                    width: 100%;
                     padding: 12px;
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                " disabled>Book Appointment</button>
+
+                <div id="booking-status" style="
+                    padding: 10px;
                     border-radius: 4px;
                     font-size: 12px;
-                    background: #e7f3ff;
-                    border: 1px solid #b3d9ff;
-                    color: #004085;
-                ">
-                    Enter access token and load data to begin
-                </div>
+                    display: none;
+                "></div>
             </div>
         `;
     }
 
     function createPaymentTabContent() {
         return `
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #dc3545;">
-                    <strong style="color: #dc3545;">Payment Configuration</strong>
-                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                        Complete payment for your appointment
-                    </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #f8d7da; padding: 10px; border-radius: 6px; font-size: 12px;">
+                    <strong>📋 Instructions:</strong><br>
+                    1. Enter Access Token<br>
+                    2. Select appointment date & time<br>
+                    3. Complete payment captcha<br>
+                    4. Click Pay Now
                 </div>
 
-                <!-- Access Token -->
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Access Token
-                    </label>
-                    <input type="text" id="payment-access-token" 
-                        placeholder="Paste your access token here"
-                        style="
-                            width: 100%;
-                            padding: 10px;
-                            border: 1px solid #ced4da;
-                            border-radius: 4px;
-                            font-size: 12px;
-                        "
-                    />
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Access Token:</label>
+                    <textarea id="payment-access-token" style="
+                        width: 100%;
+                        height: 60px;
+                        padding: 8px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        font-family: monospace;
+                        resize: vertical;
+                        box-sizing: border-box;
+                    " placeholder="Paste access token"></textarea>
                 </div>
 
-                <!-- API Configuration -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">API Endpoint</label>
-                        <input type="text" id="payment-api-endpoint" 
-                            value="https://payment.ivacbd.com/api/v1/queue-manage"
-                            style="
-                                width: 100%;
-                                padding: 8px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 11px;
-                            "
-                        />
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Appointment Date:</label>
+                        <input type="text" id="appointment-date" 
+                               style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" 
+                               placeholder="YYYY-MM-DD">
                     </div>
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">Captcha Field Name</label>
-                        <input type="text" id="payment-captcha-field-name" 
-                            value="cf-turnstile-response"
-                            style="
-                                width: 100%;
-                                padding: 8px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 11px;
-                            "
-                        />
-                    </div>
-                </div>
-
-                <!-- Appointment Selection -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">Appointment Date</label>
-                        <select id="appointment-date" style="
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Time:</label>
+                        <select id="appointment-time" style="
                             width: 100%;
                             padding: 8px;
-                            border: 1px solid #ced4da;
+                            border: 1px solid #ccc;
                             border-radius: 4px;
-                            font-size: 12px;
-                        ">
-                            <option value="">Select date</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: bold;">Appointment Time</label>
-                        <select id="appointment-time" disabled style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid #ced4da;
-                            border-radius: 4px;
-                            font-size: 12px;
-                        ">
-                            <option value="">Select date first</option>
+                            box-sizing: border-box;
+                        " disabled>
+                            <option value="">Select time...</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Populate Slots Button -->
-                <button id="populate-slots-btn" style="
+                <button id="fetch-appointment-btn" style="
                     width: 100%;
-                    padding: 10px;
-                    background: #007bff;
+                    padding: 8px;
+                    background: #17a2b8;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
                     font-weight: bold;
                     font-size: 12px;
-                ">Populate Date/Time Slots</button>
+                ">Fetch Available Slots</button>
 
-                <!-- Payment Method Selection -->
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Payment Method
-                    </label>
-                    <div style="display: flex; gap: 16px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="radio" name="payment-method" value="visacard" checked style="cursor: pointer;" />
-                            <span style="font-size: 12px;">VISA Card</span>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Payment Method:</label>
+                    <div style="display: flex; gap: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="payment-method" value="visacard" checked style="margin-right: 5px;">
+                            VISA Card
                         </label>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="radio" name="payment-method" value="master" style="cursor: pointer;" />
-                            <span style="font-size: 12px;">Master Card</span>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="payment-method" value="master" style="margin-right: 5px;">
+                            Master Card
                         </label>
                     </div>
                 </div>
 
-                <!-- Payment Captcha Section -->
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
-                        Payment Captcha
-                    </label>
-                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <input type="text" id="payment-sitekey" 
-                            value="${CLOUDFLARE_SITEKEYS.payment}"
-                            style="
-                                flex: 1;
-                                padding: 10px;
-                                border: 1px solid #ced4da;
-                                border-radius: 4px;
-                                font-size: 12px;
-                            "
-                        />
-                        <button id="load-payment-captcha-btn" style="
-                            padding: 10px 20px;
-                            background: #007bff;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-weight: bold;
-                            font-size: 12px;
-                            white-space: nowrap;
-                        ">Load</button>
-                    </div>
-                    <div id="payment-captcha-container" style="
-                        min-height: 65px;
-                        border: 1px dashed #ced4da;
-                        border-radius: 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        background: #f8f9fa;
-                        padding: 10px;
-                    ">
-                        <p style="color: #666; margin: 0; font-size: 12px;">Click "Load" to load captcha</p>
-                    </div>
-                    <input type="hidden" id="payment-captcha-token" />
-                </div>
-
-                <!-- Payment Buttons -->
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
-                    <button id="pay-now-btn" disabled style="
-                        padding: 14px;
-                        background: #6c757d;
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Cloudflare Sitekey:</label>
+                    <input type="text" id="payment-sitekey" 
+                           value="${CLOUDFLARE_SITEKEYS.payment}" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 11px;">
+                    <button id="load-payment-captcha-btn" style="
+                        margin-top: 5px;
+                        padding: 6px 12px;
+                        background: #17a2b8;
                         color: white;
                         border: none;
                         border-radius: 4px;
-                        cursor: not-allowed;
-                        font-weight: bold;
-                        font-size: 14px;
-                    ">Pay Now</button>
-                    <button id="payment-btn" disabled style="
-                        padding: 14px;
-                        background: #6c757d;
-                        color: white;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: not-allowed;
-                        font-weight: bold;
-                        font-size: 14px;
-                    ">Payment</button>
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">Load Payment Captcha</button>
                 </div>
 
-                <!-- Status Section -->
-                <div id="payment-status" style="
+                <div id="payment-captcha-container" style="margin: 10px 0;"></div>
+                <input type="hidden" id="payment-captcha-token">
+                <input type="hidden" id="payment-captcha-field-name" value="cf-turnstile-response">
+                <input type="hidden" id="payment-api-endpoint" value="https://payment.ivacbd.com/api/save_payment">
+
+                <button id="pay-now-btn" style="
+                    width: 100%;
                     padding: 12px;
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                " disabled>Pay Now</button>
+
+                <button id="payment-btn" style="
+                    width: 100%;
+                    padding: 10px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    display: none;
+                ">Open Payment Gateway</button>
+
+                <div id="payment-status" style="
+                    padding: 10px;
                     border-radius: 4px;
                     font-size: 12px;
-                    background: #e7f3ff;
-                    border: 1px solid #b3d9ff;
-                    color: #004085;
-                ">
-                    Complete all fields to proceed with payment
-                </div>
+                    display: none;
+                "></div>
             </div>
         `;
     }
 
+    function setupEventListeners() {
+        // Panel controls
+        const closeBtn = document.getElementById('close-panel');
+        const minimizeBtn = document.getElementById('minimize-panel');
+        
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                document.getElementById('ivac-assistant-main').remove();
+                window.IVACAssistantLoaded = false;
+            };
+        }
+
+        if (minimizeBtn) {
+            minimizeBtn.onclick = () => {
+                const content = document.getElementById('panel-content');
+                const tabNav = document.getElementById('tab-navigation');
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    tabNav.style.display = 'flex';
+                    minimizeBtn.textContent = '−';
+                } else {
+                    content.style.display = 'none';
+                    tabNav.style.display = 'none';
+                    minimizeBtn.textContent = '+';
+                }
+            };
+        }
+
+        // Login tab events
+        setupLoginEvents();
+
+        // Booking tab events
+        setupBookingEvents();
+
+        // Payment tab events
+        setupPaymentEvents();
+    }
+
+    function setupLoginEvents() {
+        const sendOtpBtn = document.getElementById('send-otp-btn');
+        const loadCaptchaBtn = document.getElementById('load-login-captcha-btn');
+        const loginBtn = document.getElementById('login-btn');
+        const copyTokenBtn = document.getElementById('copy-token-btn');
+
+        if (sendOtpBtn) {
+            sendOtpBtn.onclick = sendOTP;
+        }
+
+        if (loadCaptchaBtn) {
+            loadCaptchaBtn.onclick = loadLoginCaptcha;
+        }
+
+        if (loginBtn) {
+            loginBtn.onclick = performLogin;
+        }
+
+        if (copyTokenBtn) {
+            copyTokenBtn.onclick = () => {
+                const tokenField = document.getElementById('login-access-token');
+                tokenField.select();
+                document.execCommand('copy');
+                updateLoginStatus('Token copied to clipboard!', 'success');
+            };
+        }
+
+        // Enable login button when all fields are filled
+        const otpInput = document.getElementById('login-otp');
+        if (otpInput) {
+            otpInput.oninput = checkLoginReadiness;
+        }
+    }
+
+    function setupBookingEvents() {
+        const loadAppInfoBtn = document.getElementById('load-app-info-btn');
+        const centerSelect = document.getElementById('booking-center-select');
+        const dateSelect = document.getElementById('booking-date-select');
+        const slotSelect = document.getElementById('booking-slot-select');
+        const loadCaptchaBtn = document.getElementById('load-booking-captcha-btn');
+        const bookBtn = document.getElementById('book-appointment-btn');
+
+        if (loadAppInfoBtn) {
+            loadAppInfoBtn.onclick = loadApplicationInfo;
+        }
+
+        if (centerSelect) {
+            centerSelect.onchange = handleCenterSelection;
+        }
+
+        if (dateSelect) {
+            dateSelect.onchange = handleDateSelection;
+        }
+
+        if (slotSelect) {
+            slotSelect.onchange = handleSlotSelection;
+        }
+
+        if (loadCaptchaBtn) {
+            loadCaptchaBtn.onclick = loadBookingCaptcha;
+        }
+
+        if (bookBtn) {
+            bookBtn.onclick = bookAppointment;
+        }
+    }
+
+    function setupPaymentEvents() {
+        const fetchAppointmentBtn = document.getElementById('fetch-appointment-btn');
+        const loadCaptchaBtn = document.getElementById('load-payment-captcha-btn');
+        const payNowBtn = document.getElementById('pay-now-btn');
+        const paymentBtn = document.getElementById('payment-btn');
+
+        if (fetchAppointmentBtn) {
+            fetchAppointmentBtn.onclick = fetchAppointmentSlots;
+        }
+
+        if (loadCaptchaBtn) {
+            loadCaptchaBtn.onclick = loadPaymentCaptcha;
+        }
+
+        if (payNowBtn) {
+            payNowBtn.onclick = submitPayment;
+        }
+
+        if (paymentBtn) {
+            paymentBtn.onclick = openPaymentLink;
+        }
+
+        // Monitor inputs for payment readiness
+        const dateInput = document.getElementById('appointment-date');
+        const timeSelect = document.getElementById('appointment-time');
+        const tokenInput = document.getElementById('payment-access-token');
+
+        if (dateInput) dateInput.oninput = checkPaymentReadiness;
+        if (timeSelect) timeSelect.onchange = checkPaymentReadiness;
+        if (tokenInput) tokenInput.oninput = checkPaymentReadiness;
+    }
+
+    function setupTabSwitching() {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        
+        tabButtons.forEach(button => {
+            button.onclick = () => {
+                const tabName = button.getAttribute('data-tab');
+                
+                // Update button states
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.style.background = '#f8f9fa';
+                    btn.style.color = '#333';
+                });
+                
+                button.classList.add('active');
+                button.style.background = '#007bff';
+                button.style.color = 'white';
+                
+                // Update content visibility
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.style.display = 'none';
+                });
+                
+                const targetTab = document.getElementById(`${tabName}-tab`);
+                if (targetTab) {
+                    targetTab.style.display = 'block';
+                }
+            };
+        });
+    }
+
     function makeDraggable(element) {
         const header = element.querySelector('#panel-header');
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
 
-        header.addEventListener('mousedown', dragStart);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', dragEnd);
+        header.onmousedown = dragMouseDown;
 
-        function dragStart(e) {
-            if (e.target.id === 'close-panel' || e.target.id === 'minimize-panel') return;
-
-            initialX = e.clientX - element.offsetLeft;
-            initialY = e.clientY - element.offsetTop;
-            isDragging = true;
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
         }
 
-        function drag(e) {
-            if (isDragging) {
-                e.preventDefault();
-                currentX = e.clientX - initialX;
-                currentY = e.clientY - initialY;
-
-                element.style.left = currentX + 'px';
-                element.style.top = currentY + 'px';
-                element.style.right = 'auto';
-            }
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            element.style.top = (element.offsetTop - pos2) + 'px';
+            element.style.left = (element.offsetLeft - pos1) + 'px';
+            element.style.right = 'auto';
         }
 
-        function dragEnd() {
-            isDragging = false;
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
         }
     }
 
@@ -737,115 +784,108 @@
         let isResizing = false;
         let startX, startY, startWidth, startHeight;
 
-        handle.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-
-        function startResize(e) {
+        handle.onmousedown = (e) => {
             isResizing = true;
             startX = e.clientX;
             startY = e.clientY;
-            startWidth = parseInt(window.getComputedStyle(element).width, 10);
-            startHeight = parseInt(window.getComputedStyle(element).height, 10);
+            startWidth = element.offsetWidth;
+            startHeight = element.offsetHeight;
             e.preventDefault();
-        }
+        };
 
-        function resize(e) {
+        document.onmousemove = (e) => {
             if (!isResizing) return;
-
+            
             const width = startWidth + (e.clientX - startX);
             const height = startHeight + (e.clientY - startY);
-
+            
             if (width > 300) element.style.width = width + 'px';
-            if (height > 400) element.style.maxHeight = height + 'px';
-        }
+            if (height > 200) element.style.height = height + 'px';
+        };
 
-        function stopResize() {
+        document.onmouseup = () => {
             isResizing = false;
+        };
+    }
+
+    // Custom fetch function with proper error handling
+    async function customFetch(url, options = {}) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                ...options.headers
+            };
+
+            const fetchOptions = {
+                method: options.method || 'GET',
+                headers: headers,
+                credentials: 'include'
+            };
+
+            if (options.body) {
+                fetchOptions.body = JSON.stringify(options.body);
+            }
+
+            const response = await fetch(url, fetchOptions);
+            const data = await response.json();
+
+            if (!response.ok) {
+                const error = new Error(data.message || 'Request failed');
+                error.status = response.status;
+                error.data = data;
+                throw error;
+            }
+
+            return data;
+        } catch (error) {
+            console.error('Fetch error:', error);
+            throw error;
         }
     }
 
-    function setupEventListeners() {
-        // Close and minimize handlers
-        document.getElementById('close-panel').addEventListener('click', () => {
-            document.getElementById('ivac-assistant-main').remove();
-            window.ivacAssistantLoaded = false;
-        });
-
-        document.getElementById('minimize-panel').addEventListener('click', () => {
-            const content = document.getElementById('panel-content');
-            const tabs = document.getElementById('tab-navigation');
-            const isMinimized = content.style.display === 'none';
-
-            content.style.display = isMinimized ? 'block' : 'none';
-            tabs.style.display = isMinimized ? 'flex' : 'none';
-            document.getElementById('minimize-panel').textContent = isMinimized ? '−' : '+';
-        });
-
-        // Login tab handlers
-        document.getElementById('load-login-captcha-btn').addEventListener('click', loadLoginCaptcha);
-        document.getElementById('login-btn').addEventListener('click', performLogin);
-
-        // Booking tab handlers
-        document.getElementById('load-booking-data-btn').addEventListener('click', loadBookingData);
-        document.getElementById('fetch-slots-btn').addEventListener('click', fetchAvailableSlots);
-        document.getElementById('auto-select-first-btn').addEventListener('click', autoSelectFirstSlot);
-        document.getElementById('booking-date-slot').addEventListener('change', onDateSlotChange);
-        document.getElementById('load-booking-captcha-btn').addEventListener('click', loadBookingCaptcha);
-        document.getElementById('book-appointment-btn').addEventListener('click', bookAppointment);
-
-        // Payment tab handlers
-        document.getElementById('populate-slots-btn').addEventListener('click', populateDateTimeSlots);
-        document.getElementById('appointment-date').addEventListener('change', onPaymentDateChange);
-        document.getElementById('load-payment-captcha-btn').addEventListener('click', loadPaymentCaptcha);
-        document.getElementById('pay-now-btn').addEventListener('click', submitPayment);
-        document.getElementById('payment-btn').addEventListener('click', openPaymentLink);
-    }
-
-    function setupTabSwitching() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
-
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const targetTab = button.getAttribute('data-tab');
-
-                // Update button styles
-                tabButtons.forEach(btn => {
-                    btn.style.background = '#f8f9fa';
-                    btn.style.color = '#333';
-                    btn.classList.remove('active');
-                });
-                button.style.background = '#007bff';
-                button.style.color = 'white';
-                button.classList.add('active');
-
-                // Show/hide tab content
-                tabContents.forEach(content => {
-                    content.style.display = 'none';
-                });
-                document.getElementById(`${targetTab}-tab`).style.display = 'block';
-            });
-        });
-    }
-
-    // ============================================================
     // LOGIN TAB FUNCTIONS
-    // ============================================================
+    async function sendOTP() {
+        const email = document.getElementById('login-email').value.trim();
+        
+        if (!email) {
+            updateLoginStatus('Please enter email/phone', 'error');
+            return;
+        }
 
-    let loginData = {
-        captchaToken: null
-    };
+        updateLoginStatus('Sending OTP...', 'info');
+        
+        const sendBtn = document.getElementById('send-otp-btn');
+        sendBtn.disabled = true;
+
+        try {
+            const result = await customFetch('https://payment.ivacbd.com/api/get_otp', {
+                method: 'POST',
+                body: { email: email }
+            });
+
+            if (result.status_code === 200) {
+                updateLoginStatus('✅ OTP sent successfully! Check your email/phone.', 'success');
+                startOTPCountdown(120);
+            } else {
+                updateLoginStatus(`Failed to send OTP: ${result.message}`, 'error');
+                sendBtn.disabled = false;
+            }
+        } catch (error) {
+            updateLoginStatus(`Error: ${error.message}`, 'error');
+            sendBtn.disabled = false;
+        }
+    }
 
     function loadLoginCaptcha() {
         const sitekey = document.getElementById('login-sitekey').value.trim();
-
+        
         if (!sitekey) {
             updateLoginStatus('Please enter the Cloudflare sitekey', 'error');
             return;
         }
 
-        updateLoginStatus('Loading login captcha widget...', 'info');
+        updateLoginStatus('Loading captcha widget...', 'info');
 
         const container = document.getElementById('login-captcha-container');
         container.innerHTML = '';
@@ -854,6 +894,9 @@
             const script = document.createElement('script');
             script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
             script.onload = () => renderLoginWidget(sitekey);
+            script.onerror = () => {
+                updateLoginStatus('Failed to load Turnstile script', 'error');
+            };
             document.head.appendChild(script);
         } else {
             renderLoginWidget(sitekey);
@@ -862,371 +905,271 @@
 
     function renderLoginWidget(sitekey) {
         const container = document.getElementById('login-captcha-container');
-
+        
         try {
             window.turnstile.render(container, {
                 sitekey: sitekey,
                 callback: function(token) {
-                    loginData.captchaToken = token;
                     document.getElementById('login-captcha-token').value = token;
-                    updateLoginStatus('Captcha verified successfully! You can now login.', 'success');
-
-                    const loginBtn = document.getElementById('login-btn');
-                    loginBtn.disabled = false;
-                    loginBtn.style.background = '#28a745';
-                    loginBtn.style.cursor = 'pointer';
+                    updateLoginStatus('Captcha verified successfully!', 'success');
+                    checkLoginReadiness();
                 },
                 'error-callback': function() {
-                    updateLoginStatus('Captcha verification failed. Please try again.', 'error');
-                    loginData.captchaToken = null;
+                    updateLoginStatus('Captcha verification failed', 'error');
                     document.getElementById('login-captcha-token').value = '';
                 }
             });
-            updateLoginStatus('Captcha widget loaded. Please complete the verification.', 'info');
+            updateLoginStatus('Captcha widget loaded. Please complete verification.', 'info');
         } catch (error) {
-            updateLoginStatus('Error loading captcha widget: ' + error.message, 'error');
+            updateLoginStatus('Error loading captcha: ' + error.message, 'error');
         }
     }
 
-    async function performLogin() {
-        const captchaToken = loginData.captchaToken || document.getElementById('login-captcha-token').value;
+    function checkLoginReadiness() {
+        const email = document.getElementById('login-email').value.trim();
+        const otp = document.getElementById('login-otp').value.trim();
+        const captchaToken = document.getElementById('login-captcha-token').value;
 
-        if (!captchaToken) {
-            updateLoginStatus('Please complete the captcha verification first', 'error');
+        const isReady = email && otp && captchaToken;
+        
+        const loginBtn = document.getElementById('login-btn');
+        loginBtn.disabled = !isReady;
+        loginBtn.style.background = isReady ? '#007bff' : '#6c757d';
+    }
+
+    async function performLogin() {
+        const email = document.getElementById('login-email').value.trim();
+        const otp = document.getElementById('login-otp').value.trim();
+        const captchaToken = document.getElementById('login-captcha-token').value;
+
+        if (!email || !otp || !captchaToken) {
+            updateLoginStatus('Please complete all fields', 'error');
             return;
         }
 
-        updateLoginStatus('Logging in with your hardcoded credentials...', 'info');
+        updateLoginStatus('Logging in...', 'info');
 
         const loginBtn = document.getElementById('login-btn');
         loginBtn.disabled = true;
         loginBtn.textContent = 'Logging in...';
 
         try {
-            const payload = {
-                email: PERSONAL_INFO.email_name,
-                'cf-turnstile-response': captchaToken
-            };
-
-            const result = await customFetch('https://payment.ivacbd.com/api/v1/login', {
+            const result = await customFetch('https://payment.ivacbd.com/api/login', {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'language': 'en'
-                },
-                body: payload
+                body: {
+                    email: email,
+                    otp: otp,
+                    'cf-turnstile-response': captchaToken
+                }
             });
 
             if (result.status_code === 200) {
-                updateLoginStatus(`✅ Login successful! Welcome ${PERSONAL_INFO.full_name}`, 'success');
+                loginState.accessToken = result.data.accessToken;
+                loginState.refreshToken = result.data.refreshToken;
+                loginState.userInfo = result.data.user;
+                loginState.isLoggedIn = true;
 
-                // Show token info
+                updateLoginStatus('✅ Login successful!', 'success');
+
+                // Display token
+                document.getElementById('login-access-token').value = result.data.accessToken;
+                document.getElementById('login-token-display').style.display = 'block';
+
+                // Auto-fill booking and payment tabs
+                document.getElementById('booking-access-token').value = result.data.accessToken;
+                document.getElementById('payment-access-token').value = result.data.accessToken;
+
                 setTimeout(() => {
-                    updateLoginStatus(`
-                        🎉 Login successful!<br>
-                        <strong>Access Token:</strong> ${result.data.token}<br>
-                        <strong>Copy this token</strong> and paste it into the Booking or Payment tab to continue.
-                    `, 'success');
-                }, 1000);
-
+                    updateLoginStatus('✅ Token saved! You can now switch to App Booking tab.', 'success');
+                }, 2000);
             } else {
-                updateLoginStatus(`Login failed: ${result.message || 'Unknown error'}`, 'error');
+                updateLoginStatus(`Login failed: ${result.message}`, 'error');
             }
         } catch (error) {
-            updateLoginStatus(`Network error: ${error.message}`, 'error');
+            updateLoginStatus(`Login error: ${error.message}`, 'error');
         } finally {
             loginBtn.disabled = false;
-            loginBtn.textContent = 'Login to IVAC';
+            loginBtn.textContent = 'Login';
         }
     }
 
-    function updateLoginStatus(message, type = 'info') {
+    function updateLoginStatus(message, type) {
         const statusDiv = document.getElementById('login-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = message;
+        
         const colors = {
-            info: { bg: '#e7f3ff', border: '#b3d9ff', text: '#004085' },
             success: { bg: '#d4edda', border: '#c3e6cb', text: '#155724' },
-            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' }
+            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' },
+            info: { bg: '#d1ecf1', border: '#bee5eb', text: '#0c5460' }
         };
-
+        
         const color = colors[type] || colors.info;
         statusDiv.style.background = color.bg;
-        statusDiv.style.borderColor = color.border;
+        statusDiv.style.border = `1px solid ${color.border}`;
         statusDiv.style.color = color.text;
-        statusDiv.innerHTML = message;
     }
 
-    // ============================================================
     // BOOKING TAB FUNCTIONS
-    // ============================================================
-
-    let bookingData = {
-        accessToken: null,
-        applicationInfo: null,
-        centers: [],
-        visaTypes: [],
-        slots: [],
-        selectedDate: null,
-        selectedTime: null,
-        captchaToken: null
-    };
-
-    async function loadBookingData() {
+    async function loadApplicationInfo() {
         const accessToken = document.getElementById('booking-access-token').value.trim();
 
         if (!accessToken) {
-            updateBookingStatus('Please enter your access token', 'error');
+            updateBookingStatus('Please enter access token', 'error');
             return;
         }
 
-        bookingData.accessToken = accessToken;
-        updateBookingStatus('Loading application data...', 'info');
+        updateBookingStatus('Loading application information...', 'info');
+
+        const loadBtn = document.getElementById('load-app-info-btn');
+        loadBtn.disabled = true;
+        loadBtn.textContent = 'Loading...';
 
         try {
-            // Fetch application info
-            const appInfo = await customFetch('https://payment.ivacbd.com/api/v1/application_info', {
+            const result = await customFetch('https://payment.ivacbd.com/api/get_applicant_info', {
                 method: 'GET',
                 headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'language': 'en'
                 }
             });
 
-            if (appInfo.status_code === 200) {
-                bookingData.applicationInfo = appInfo.data;
-                displayApplicationInfo(appInfo.data);
+            if (result.status_code === 200) {
+                bookingState.applicationInfo = result.data;
+                updateBookingStatus('✅ Application info loaded!', 'success');
 
-                // Sync webfile_id
-                PERSONAL_INFO.webfile_id = appInfo.data.webfile_number;
+                // Sync webfile_id to personal info
+                if (result.data.web_file_number) {
+                    PERSONAL_INFO.webfile_id = result.data.web_file_number;
+                }
 
-                // Fetch centers and visa types
-                await loadCentersAndVisaTypes(accessToken);
-
-                updateBookingStatus('Application data loaded successfully!', 'success');
+                // Load visa centers
+                await loadVisaCenters(accessToken);
             } else {
-                updateBookingStatus(`Failed to load data: ${appInfo.message}`, 'error');
+                updateBookingStatus(`Failed to load info: ${result.message}`, 'error');
             }
         } catch (error) {
-            updateBookingStatus(`Network error: ${error.message}`, 'error');
-
-            if (error.status === 401 || error.status === 419) {
-                setTimeout(() => {
-                    updateBookingStatus('Session expired. Please login again.', 'error');
-                }, 3000);
-            }
+            updateBookingStatus(`Error: ${error.message}`, 'error');
+        } finally {
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Load Application Info';
         }
     }
 
-    function displayApplicationInfo(data) {
-        const infoDiv = document.getElementById('booking-application-info');
-        const detailsDiv = document.getElementById('booking-app-details');
-
-        detailsDiv.innerHTML = `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div><strong>Name:</strong> ${data.name}</div>
-                <div><strong>Web File:</strong> ${data.webfile_number}</div>
-                <div><strong>Email:</strong> ${data.email}</div>
-                <div><strong>Phone:</strong> ${data.phone}</div>
-                <div><strong>Applicants:</strong> ${data.applicant_count}</div>
-                <div><strong>Amount:</strong> $${data.amount}</div>
-            </div>
-        `;
-
-        infoDiv.style.display = 'block';
-    }
-
-    async function loadCentersAndVisaTypes(accessToken) {
+    async function loadVisaCenters(accessToken) {
         try {
-            // Fetch centers
-            const centersResult = await customFetch('https://payment.ivacbd.com/api/v1/get_center_list', {
+            updateBookingStatus('Loading visa centers...', 'info');
+
+            const result = await customFetch('https://payment.ivacbd.com/api/get_visa_application_centres', {
                 method: 'GET',
                 headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'language': 'en'
                 }
             });
 
-            if (centersResult.status_code === 200) {
-                bookingData.centers = centersResult.data;
-                populateCenterDropdown(centersResult.data);
-            }
+            if (result.status_code === 200 && result.data) {
+                const centerSelect = document.getElementById('booking-center-select');
+                centerSelect.innerHTML = '<option value="">Select a center...</option>';
 
-            // Fetch visa types
-            const visaTypesResult = await customFetch('https://payment.ivacbd.com/api/v1/get_visa_type_list', {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
+                result.data.forEach(center => {
+                    const option = document.createElement('option');
+                    option.value = center.id;
+                    option.textContent = `${center.center_name} (${center.address})`;
+                    option.dataset.centerInfo = JSON.stringify(center);
+                    centerSelect.appendChild(option);
+                });
 
-            if (visaTypesResult.status_code === 200) {
-                bookingData.visaTypes = visaTypesResult.data;
-                populateVisaTypeDropdown(visaTypesResult.data);
+                document.getElementById('booking-center-section').style.display = 'block';
+                updateBookingStatus('✅ Visa centers loaded. Please select one.', 'success');
             }
         } catch (error) {
-            console.error('Error loading centers/visa types:', error);
+            updateBookingStatus(`Error loading centers: ${error.message}`, 'error');
         }
     }
 
-    function populateCenterDropdown(centers) {
-        const select = document.getElementById('booking-center');
-        select.innerHTML = '<option value="">Select Center</option>';
+    async function handleCenterSelection() {
+        const centerSelect = document.getElementById('booking-center-select');
+        const selectedOption = centerSelect.options[centerSelect.selectedIndex];
 
-        centers.forEach(center => {
-            const option = document.createElement('option');
-            option.value = center.c_id;
-            option.textContent = center.c_name;
-            select.appendChild(option);
-        });
+        if (!selectedOption.value) return;
 
-        select.addEventListener('change', enableFetchSlots);
-    }
+        bookingState.selectedCenter = JSON.parse(selectedOption.dataset.centerInfo);
+        
+        updateBookingStatus('Loading available dates...', 'info');
 
-    function populateVisaTypeDropdown(visaTypes) {
-        const select = document.getElementById('booking-visa-type');
-        select.innerHTML = '<option value="">Select Visa Type</option>';
-
-        visaTypes.forEach(visaType => {
-            const option = document.createElement('option');
-            option.value = visaType.v_id;
-            option.textContent = visaType.v_name;
-            select.appendChild(option);
-        });
-
-        select.addEventListener('change', enableFetchSlots);
-    }
-
-    function enableFetchSlots() {
-        const center = document.getElementById('booking-center').value;
-        const visaType = document.getElementById('booking-visa-type').value;
-
-        const fetchBtn = document.getElementById('fetch-slots-btn');
-        const autoBtn = document.getElementById('auto-select-first-btn');
-
-        if (center && visaType) {
-            fetchBtn.disabled = false;
-            fetchBtn.style.background = '#28a745';
-            fetchBtn.style.cursor = 'pointer';
-
-            autoBtn.disabled = false;
-            autoBtn.style.background = '#ffc107';
-            autoBtn.style.cursor = 'pointer';
-        }
-    }
-
-    async function fetchAvailableSlots() {
-        const center = document.getElementById('booking-center').value;
-        const visaType = document.getElementById('booking-visa-type').value;
-
-        if (!center || !visaType) {
-            updateBookingStatus('Please select both center and visa type', 'error');
-            return;
-        }
-
-        updateBookingStatus('Fetching available slots...', 'info');
+        const accessToken = document.getElementById('booking-access-token').value.trim();
 
         try {
-            const result = await customFetch('https://payment.ivacbd.com/api/v1/get_available_slots', {
+            const result = await customFetch('https://payment.ivacbd.com/api/get_available_slots_for_appointment', {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${bookingData.accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'language': 'en'
                 },
                 body: {
-                    center_id: center,
-                    visa_type_id: visaType
+                    visa_application_centre_id: bookingState.selectedCenter.id
                 }
             });
 
-            if (result.status_code === 200 && result.data && result.data.length > 0) {
-                bookingData.slots = result.data;
-                populateDateSlots(result.data);
-                updateBookingStatus(`Found ${result.data.length} available slots!`, 'success');
-            } else {
-                updateBookingStatus('No available slots found', 'error');
-                bookingData.slots = [];
+            if (result.status_code === 200 && result.data) {
+                bookingState.availableDates = result.data;
+                
+                const dateSelect = document.getElementById('booking-date-select');
+                dateSelect.innerHTML = '<option value="">Select a date...</option>';
+
+                result.data.forEach(dateInfo => {
+                    const option = document.createElement('option');
+                    option.value = dateInfo.date;
+                    option.textContent = `${dateInfo.date} (${dateInfo.slots.length} slots)`;
+                    option.dataset.dateInfo = JSON.stringify(dateInfo);
+                    dateSelect.appendChild(option);
+                });
+
+                dateSelect.disabled = false;
+                document.getElementById('booking-date-section').style.display = 'block';
+                updateBookingStatus('✅ Available dates loaded. Select a date.', 'success');
             }
         } catch (error) {
-            updateBookingStatus(`Error fetching slots: ${error.message}`, 'error');
+            updateBookingStatus(`Error loading dates: ${error.message}`, 'error');
         }
     }
 
-    function populateDateSlots(slots) {
-        const select = document.getElementById('booking-date-slot');
-        select.innerHTML = '';
-        select.disabled = false;
+    function handleDateSelection() {
+        const dateSelect = document.getElementById('booking-date-select');
+        const selectedOption = dateSelect.options[dateSelect.selectedIndex];
 
-        slots.forEach((slot, index) => {
+        if (!selectedOption.value) return;
+
+        const dateInfo = JSON.parse(selectedOption.dataset.dateInfo);
+        bookingState.selectedDate = dateInfo;
+
+        const slotSelect = document.getElementById('booking-slot-select');
+        slotSelect.innerHTML = '<option value="">Select a slot...</option>';
+
+        dateInfo.slots.forEach(slot => {
             const option = document.createElement('option');
-            option.value = index;
-            option.textContent = `${slot.date} (${slot.available_slots} slots available)`;
-            select.appendChild(option);
-        });
-    }
-
-    function onDateSlotChange() {
-        const select = document.getElementById('booking-date-slot');
-        const selectedIndex = select.value;
-
-        if (selectedIndex === '') return;
-
-        const slot = bookingData.slots[selectedIndex];
-        bookingData.selectedDate = slot.date;
-
-        populateTimeSlots(slot.slots);
-    }
-
-    function populateTimeSlots(timeSlots) {
-        const select = document.getElementById('booking-time-slot');
-        select.innerHTML = '';
-        select.disabled = false;
-
-        timeSlots.forEach(time => {
-            const option = document.createElement('option');
-            option.value = time;
-            option.textContent = time;
-            select.appendChild(option);
+            option.value = slot.slot_id;
+            option.textContent = `${slot.slot_time} (${slot.availableSlot} available)`;
+            option.dataset.slotInfo = JSON.stringify(slot);
+            slotSelect.appendChild(option);
         });
 
-        select.addEventListener('change', () => {
-            bookingData.selectedTime = select.value;
-            enableBookingCaptcha();
-        });
+        slotSelect.disabled = false;
+        document.getElementById('booking-slot-section').style.display = 'block';
+        updateBookingStatus('✅ Slots loaded. Select a time slot.', 'success');
     }
 
-    function enableBookingCaptcha() {
-        if (bookingData.selectedDate && bookingData.selectedTime) {
-            const loadBtn = document.getElementById('load-booking-captcha-btn');
-            loadBtn.disabled = false;
-            loadBtn.style.background = '#007bff';
-            loadBtn.style.cursor = 'pointer';
+    function handleSlotSelection() {
+        const slotSelect = document.getElementById('booking-slot-select');
+        const selectedOption = slotSelect.options[slotSelect.selectedIndex];
 
-            updateBookingStatus('Date and time selected. Load captcha to continue.', 'info');
-        }
-    }
+        if (!selectedOption.value) return;
 
-    async function autoSelectFirstSlot() {
-        await fetchAvailableSlots();
-
-        if (bookingData.slots.length > 0) {
-            const dateSelect = document.getElementById('booking-date-slot');
-            dateSelect.selectedIndex = 0;
-            onDateSlotChange();
-
-            setTimeout(() => {
-                const timeSelect = document.getElementById('booking-time-slot');
-                if (timeSelect.options.length > 0) {
-                    timeSelect.selectedIndex = 0;
-                    bookingData.selectedTime = timeSelect.value;
-                    enableBookingCaptcha();
-                    updateBookingStatus('First available slot selected automatically!', 'success');
-                }
-            }, 500);
-        }
+        bookingState.selectedSlot = JSON.parse(selectedOption.dataset.slotInfo);
+        
+        document.getElementById('booking-captcha-section').style.display = 'block';
+        updateBookingStatus('✅ Slot selected. Load captcha to continue.', 'success');
     }
 
     function loadBookingCaptcha() {
@@ -1237,7 +1180,7 @@
             return;
         }
 
-        updateBookingStatus('Loading booking captcha widget...', 'info');
+        updateBookingStatus('Loading booking captcha...', 'info');
 
         const container = document.getElementById('booking-captcha-container');
         container.innerHTML = '';
@@ -1259,213 +1202,158 @@
             window.turnstile.render(container, {
                 sitekey: sitekey,
                 callback: function(token) {
-                    bookingData.captchaToken = token;
                     document.getElementById('booking-captcha-token').value = token;
-                    updateBookingStatus('Captcha verified! Ready to book appointment.', 'success');
-
+                    updateBookingStatus('Booking captcha verified!', 'success');
+                    
                     const bookBtn = document.getElementById('book-appointment-btn');
                     bookBtn.disabled = false;
                     bookBtn.style.background = '#28a745';
-                    bookBtn.style.cursor = 'pointer';
                 },
                 'error-callback': function() {
-                    updateBookingStatus('Captcha verification failed', 'error');
-                    bookingData.captchaToken = null;
+                    updateBookingStatus('Booking captcha failed', 'error');
                     document.getElementById('booking-captcha-token').value = '';
                 }
             });
-            updateBookingStatus('Captcha widget loaded. Please complete verification.', 'info');
+            updateBookingStatus('Booking captcha loaded. Complete verification.', 'info');
         } catch (error) {
-            updateBookingStatus('Error loading captcha widget: ' + error.message, 'error');
+            updateBookingStatus('Error loading captcha: ' + error.message, 'error');
         }
     }
 
     async function bookAppointment() {
-        const captchaToken = bookingData.captchaToken || document.getElementById('booking-captcha-token').value;
+        const accessToken = document.getElementById('booking-access-token').value.trim();
+        const captchaToken = document.getElementById('booking-captcha-token').value;
 
-        if (!captchaToken) {
-            updateBookingStatus('Please complete captcha verification', 'error');
+        if (!bookingState.selectedCenter || !bookingState.selectedSlot || !captchaToken) {
+            updateBookingStatus('Please complete all selections', 'error');
             return;
         }
 
-        if (!bookingData.selectedDate || !bookingData.selectedTime) {
-            updateBookingStatus('Please select date and time', 'error');
-            return;
-        }
-
-        updateBookingStatus('Booking your appointment...', 'info');
+        updateBookingStatus('Booking appointment...', 'info');
 
         const bookBtn = document.getElementById('book-appointment-btn');
         bookBtn.disabled = true;
         bookBtn.textContent = 'Booking...';
 
         try {
-            const payload = {
-                center_id: document.getElementById('booking-center').value,
-                visa_type_id: document.getElementById('booking-visa-type').value,
-                appointment_date: bookingData.selectedDate,
-                appointment_time: bookingData.selectedTime,
-                'cf-turnstile-response': captchaToken
-            };
-
-            const result = await customFetch('https://payment.ivacbd.com/api/v1/book_appointment', {
+            const result = await customFetch('https://payment.ivacbd.com/api/book_appointment', {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${bookingData.accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'language': 'en'
                 },
-                body: payload
+                body: {
+                    slot_id: bookingState.selectedSlot.slot_id,
+                    'cf-turnstile-response': captchaToken
+                }
             });
 
             if (result.status_code === 200) {
-                updateBookingStatus(`
-                    🎉 Appointment booked successfully!<br>
-                    <strong>Date:</strong> ${bookingData.selectedDate}<br>
-                    <strong>Time:</strong> ${bookingData.selectedTime}<br>
-                    Now proceed to Payment tab to complete payment.
-                `, 'success');
+                updateBookingStatus('🎉 Appointment booked successfully! You can now proceed to payment.', 'success');
+                
+                // Auto-fill payment tab
+                document.getElementById('appointment-date').value = bookingState.selectedDate.date;
+                
+                setTimeout(() => {
+                    updateBookingStatus('✅ Appointment confirmed! Switch to Payment tab to complete payment.', 'success');
+                }, 2000);
             } else {
-                updateBookingStatus(`Booking failed: ${result.message || 'Unknown error'}`, 'error');
+                updateBookingStatus(`Booking failed: ${result.message}`, 'error');
             }
         } catch (error) {
-            updateBookingStatus(`Network error: ${error.message}`, 'error');
-
-            if (error.status === 401 || error.status === 419) {
-                setTimeout(() => {
-                    updateBookingStatus('Session expired. Please login again.', 'error');
-                }, 3000);
-            }
+            updateBookingStatus(`Booking error: ${error.message}`, 'error');
         } finally {
             bookBtn.disabled = false;
             bookBtn.textContent = 'Book Appointment';
         }
     }
 
-    function updateBookingStatus(message, type = 'info') {
+    function updateBookingStatus(message, type) {
         const statusDiv = document.getElementById('booking-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = message;
+
         const colors = {
-            info: { bg: '#e7f3ff', border: '#b3d9ff', text: '#004085' },
             success: { bg: '#d4edda', border: '#c3e6cb', text: '#155724' },
-            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' }
+            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' },
+            info: { bg: '#d1ecf1', border: '#bee5eb', text: '#0c5460' }
         };
 
         const color = colors[type] || colors.info;
         statusDiv.style.background = color.bg;
-        statusDiv.style.borderColor = color.border;
+        statusDiv.style.border = `1px solid ${color.border}`;
         statusDiv.style.color = color.text;
-        statusDiv.innerHTML = message;
     }
 
-    // ============================================================
     // PAYMENT TAB FUNCTIONS
-    // ============================================================
-
-    let paymentData = {
-        paymentUrl: null
-    };
-
-    async function populateDateTimeSlots() {
+    async function fetchAppointmentSlots() {
         const accessToken = document.getElementById('payment-access-token').value.trim();
+        const appointmentDate = document.getElementById('appointment-date').value.trim();
 
-        if (!accessToken) {
-            updatePaymentStatus('Please enter your access token', 'error');
+        if (!accessToken || !appointmentDate) {
+            updatePaymentStatus('Please enter access token and date', 'error');
             return;
         }
 
-        updatePaymentStatus('Fetching date and time slots...', 'info');
+        updatePaymentStatus('Fetching available slots...', 'info');
+
+        const fetchBtn = document.getElementById('fetch-appointment-btn');
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = 'Fetching...';
 
         try {
-            // Use the queued info endpoint to get booked appointment details
-            const result = await customFetch('https://payment.ivacbd.com/api/v1/queue_info', {
-                method: 'GET',
+            const result = await customFetch('https://payment.ivacbd.com/api/get_payment_slots', {
+                method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'language': 'en'
+                },
+                body: {
+                    date: appointmentDate
                 }
             });
 
-            if (result.status_code === 200 && result.data) {
-                const data = result.data;
-
-                // Populate appointment date
-                const dateSelect = document.getElementById('appointment-date');
-                dateSelect.innerHTML = '';
-                const dateOption = document.createElement('option');
-                dateOption.value = data.slot_date;
-                dateOption.textContent = data.slot_date;
-                dateSelect.appendChild(dateOption);
-                dateSelect.value = data.slot_date;
-
-                // Populate appointment time
+            if (result.status_code === 200 && result.data && result.data.length > 0) {
                 const timeSelect = document.getElementById('appointment-time');
-                timeSelect.innerHTML = '';
-                const timeOption = document.createElement('option');
-                timeOption.value = data.slot_time;
-                timeOption.textContent = data.slot_time;
-                timeSelect.appendChild(timeOption);
-                timeSelect.value = data.slot_time;
-                timeSelect.disabled = false;
+                timeSelect.innerHTML = '<option value="">Select time...</option>';
 
-                updatePaymentStatus(`Appointment details loaded: ${data.slot_date} at ${data.slot_time}`, 'success');
-                checkPaymentReadiness();
+                result.data.forEach(slot => {
+                    const option = document.createElement('option');
+                    option.value = slot.time;
+                    option.textContent = `${slot.time} (${slot.available} available)`;
+                    timeSelect.appendChild(option);
+                });
+
+                timeSelect.disabled = false;
+                updatePaymentStatus('✅ Slots loaded. Select a time.', 'success');
             } else {
-                // If no queued appointment, try to set default
-                setDefaultSlotTime();
+                // No slots available, set default
+                setDefaultPaymentSlot();
             }
         } catch (error) {
-            updatePaymentStatus(`Error fetching slots: ${error.message}`, 'error');
-            // Fallback to default time
-            setDefaultSlotTime();
+            updatePaymentStatus(`Error: ${error.message}`, 'error');
+            setDefaultPaymentSlot();
+        } finally {
+            fetchBtn.disabled = false;
+            fetchBtn.textContent = 'Fetch Available Slots';
         }
     }
 
-    function onPaymentDateChange() {
-        const date = document.getElementById('appointment-date').value;
+    function setDefaultPaymentSlot() {
         const timeSelect = document.getElementById('appointment-time');
+        const defaultTime = '10:00 AM - 10:30 AM';
 
-        if (date) {
-            // In a real scenario, you'd fetch times for this date
-            // For now, we'll just enable the time select
-            timeSelect.disabled = false;
-            checkPaymentReadiness();
-        }
-    }
-
-    function setDefaultSlotTime() {
-        const dateSelect = document.getElementById('appointment-date');
-        const timeSelect = document.getElementById('appointment-time');
-
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date();
-        const defaultDate = today.toISOString().split('T')[0];
-        const defaultTime = '09:00';
-
-        // Populate default date
-        dateSelect.innerHTML = '';
-        let defaultDateOption = document.createElement('option');
-        defaultDateOption.value = defaultDate;
-        defaultDateOption.textContent = defaultDate + ' (Default)';
-        dateSelect.appendChild(defaultDateOption);
-        dateSelect.value = defaultDate;
-
-        // Populate default time
-        timeSelect.innerHTML = '';
-        let defaultOption = dateSelect.querySelector(`option[value="${defaultTime}"]`);
-        if (!defaultOption) {
-            defaultOption = document.createElement('option');
-            defaultOption.value = defaultTime;
-            defaultOption.textContent = defaultTime;
-            timeSelect.appendChild(defaultOption);
-        }
+        timeSelect.innerHTML = '<option value="">Select time...</option>';
+        
+        const defaultOption = document.createElement('option');
+        defaultOption.value = defaultTime;
+        defaultOption.textContent = defaultTime;
+        timeSelect.appendChild(defaultOption);
 
         timeSelect.value = defaultTime;
         timeSelect.disabled = false;
 
         updatePaymentStatus(`Default slot time set: ${defaultTime}`, 'info');
-
-        // Enable pay now button
         checkPaymentReadiness();
     }
 
@@ -1477,7 +1365,7 @@
             return;
         }
 
-        updatePaymentStatus('Loading payment captcha widget...', 'info');
+        updatePaymentStatus('Loading payment captcha...', 'info');
 
         const container = document.getElementById('payment-captcha-container');
         container.innerHTML = '';
@@ -1500,17 +1388,17 @@
                 sitekey: sitekey,
                 callback: function(token) {
                     document.getElementById('payment-captcha-token').value = token;
-                    updatePaymentStatus('Payment captcha verified successfully!', 'success');
+                    updatePaymentStatus('Payment captcha verified!', 'success');
                     checkPaymentReadiness();
                 },
                 'error-callback': function() {
-                    updatePaymentStatus('Payment captcha verification failed', 'error');
+                    updatePaymentStatus('Payment captcha failed', 'error');
                     document.getElementById('payment-captcha-token').value = '';
                 }
             });
-            updatePaymentStatus('Payment captcha widget loaded. Please complete verification.', 'info');
+            updatePaymentStatus('Payment captcha loaded. Complete verification.', 'info');
         } catch (error) {
-            updatePaymentStatus('Error loading payment captcha widget: ' + error.message, 'error');
+            updatePaymentStatus('Error: ' + error.message, 'error');
         }
     }
 
@@ -1539,7 +1427,6 @@
         const captchaFieldName = document.getElementById('payment-captcha-field-name').value;
         const apiEndpoint = document.getElementById('payment-api-endpoint').value;
 
-        // Get selected payment method
         const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
         const paymentMethod = {
             name: selectedPaymentMethod === 'visacard' ? 'VISA' : 'MASTER',
@@ -1561,15 +1448,12 @@
         payNowBtn.textContent = 'Processing...';
 
         try {
-            // Payload structure matches the site script exactly
             const payload = {
                 appointment_date: appointmentDate,
                 appointment_time: appointmentTime,
                 selected_payment: paymentMethod,
                 [captchaFieldName]: captchaToken
             };
-
-            console.log('Payment payload:', payload); // Debug log
 
             const result = await customFetch(apiEndpoint, {
                 method: 'POST',
@@ -1582,38 +1466,30 @@
             });
 
             if (result.status_code === 200) {
-                updatePaymentStatus('Payment request submitted successfully! Payment URL received.', 'success');
+                updatePaymentStatus('Payment request submitted successfully!', 'success');
 
-                // Store payment URL
                 paymentData.paymentUrl = result.data.url;
 
-                // Enable payment button
                 const paymentBtn = document.getElementById('payment-btn');
                 paymentBtn.disabled = false;
+                paymentBtn.style.display = 'block';
                 paymentBtn.style.background = '#28a745';
 
-                // Show success message with options
                 setTimeout(() => {
                     updatePaymentStatus(`
-                        🎉 Payment URL received successfully!<br>
-                        <strong>Options:</strong><br>
-                        • Click "Payment" button to open in new tab<br>
-                        • Or we can redirect directly to payment (like original site)<br>
+                        🎉 Payment URL received!<br>
+                        Click "Open Payment Gateway" button below<br>
                         <strong>Payment URL:</strong> ${result.data.url}
                     `, 'success');
                 }, 1000);
 
-                // Optional: Ask user if they want to redirect immediately
-                const autoRedirect = confirm('Payment URL received! Do you want to redirect to payment gateway now?\n\nClick OK to redirect immediately, or Cancel to use the Payment button.');
+                const autoRedirect = confirm('Payment URL received! Redirect to payment gateway now?\n\nOK = Redirect immediately\nCancel = Use Payment button');
 
                 if (autoRedirect) {
-                    // Clear localStorage and redirect like original site
-                    // localStorage.clear(); // Uncomment if you want to clear all localStorage
                     window.location.href = result.data.url;
                 }
-
             } else {
-                updatePaymentStatus(`Payment submission failed: ${result.message || 'Unknown error'}`, 'error');
+                updatePaymentStatus(`Payment failed: ${result.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             updatePaymentStatus(`Network error: ${error.message}`, 'error');
@@ -1632,70 +1508,47 @@
     function openPaymentLink() {
         if (paymentData.paymentUrl) {
             window.open(paymentData.paymentUrl, '_blank');
-            updatePaymentStatus('Payment gateway opened in new tab. Complete your payment there.', 'success');
+            updatePaymentStatus('Payment gateway opened in new tab.', 'success');
         } else {
-            updatePaymentStatus('No payment URL available. Please submit payment first.', 'error');
+            updatePaymentStatus('No payment URL available. Submit payment first.', 'error');
         }
     }
 
-    function updatePaymentStatus(message, type = 'info') {
+    function updatePaymentStatus(message, type) {
         const statusDiv = document.getElementById('payment-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = message;
+
         const colors = {
-            info: { bg: '#e7f3ff', border: '#b3d9ff', text: '#004085' },
             success: { bg: '#d4edda', border: '#c3e6cb', text: '#155724' },
-            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' }
+            error: { bg: '#f8d7da', border: '#f5c6cb', text: '#721c24' },
+            info: { bg: '#d1ecf1', border: '#bee5eb', text: '#0c5460' }
         };
 
         const color = colors[type] || colors.info;
         statusDiv.style.background = color.bg;
-        statusDiv.style.borderColor = color.border;
+        statusDiv.style.border = `1px solid ${color.border}`;
         statusDiv.style.color = color.text;
-        statusDiv.innerHTML = message;
     }
 
-    // ============================================================
-    // UTILITY FUNCTIONS
-    // ============================================================
+    function startOTPCountdown(seconds) {
+        const sendBtn = document.getElementById('send-otp-btn');
+        let remainingTime = seconds;
 
-    async function customFetch(url, options = {}) {
-        const defaultHeaders = {
-            'Content-Type': 'application/json'
-        };
-
-        const config = {
-            ...options,
-            headers: {
-                ...defaultHeaders,
-                ...options.headers
+        const timer = setInterval(() => {
+            if (remainingTime > 0) {
+                sendBtn.textContent = `Resend (${remainingTime}s)`;
+                sendBtn.disabled = true;
+                remainingTime--;
+            } else {
+                sendBtn.textContent = 'Send OTP';
+                sendBtn.disabled = false;
+                clearInterval(timer);
             }
-        };
-
-        if (options.body && typeof options.body === 'object') {
-            config.body = JSON.stringify(options.body);
-        }
-
-        try {
-            const response = await fetch(url, config);
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw {
-                    status: response.status,
-                    message: data.message || 'Request failed',
-                    data: data
-                };
-            }
-
-            return data;
-        } catch (error) {
-            if (error.status) {
-                throw error;
-            }
-            throw {
-                status: 0,
-                message: error.message || 'Network error occurred'
-            };
-        }
+        }, 1000);
     }
+
+    // Initialize the script
+    initScript();
 
 })();
