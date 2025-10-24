@@ -2,6 +2,8 @@
  * IVAC Login Assistant v2.3 - Bookmarklet Version
  * Complete IVAC automation with hardcoded personal info
  * Compatible with bookmarklet loader method
+ * 
+ * Usage: Load this script via bookmarklet on payment.ivacbd.com
  */
 
 (function() {
@@ -19,9 +21,8 @@
         full_name: 'NAJNEN SULTANA',
         email_name: 'najnensultana87@gmail.com',
         phone: '01889844184',
-        webfile_id: 'BGDCV0F0A525', // This will be synced from application info
+        webfile_id: 'BGDCV0F0A525',
 
-        // Family members - modify count and details as needed
         family: {
             1: {
                 name: 'MD PERVES',
@@ -46,14 +47,22 @@
         }
     };
 
-    // Hardcoded Cloudflare sitekey - modify as needed
+    // Hardcoded Cloudflare sitekeys
     const CLOUDFLARE_SITEKEYS = {
-    login: '0x4AAAAAABpNUpzYeppBoYpe',
-    booking: '0x4AAAAAABvQ3Mi6RktCuZ7P',
-    payment: '0x4AAAAAABvQ3Mi6RktCuZ7P'
-};
+        login: '0x4AAAAAABpNUpzYeppBoYpe',
+        booking: '0x4AAAAAABvQ3Mi6RktCuZ7P',
+        payment: '0x4AAAAAABvQ3Mi6RktCuZ7P'
+    };
 
-    // Wait for page to load completely
+    // Payment data storage
+    let paymentData = {
+        slotDates: {},
+        slotTimes: [],
+        paymentUrl: '',
+        selectedPaymentMethod: 'visacard'
+    };
+
+    // Initialize script
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initScript);
     } else {
@@ -61,10 +70,17 @@
     }
 
     function initScript() {
-        setTimeout(createMainPanel, 2000);
+        console.log('IVAC Assistant v2.3 initializing...');
+        setTimeout(createMainPanel, 1000);
     }
 
     function createMainPanel() {
+        // Remove existing panel if any
+        const existing = document.getElementById('ivac-assistant-main');
+        if (existing) {
+            existing.remove();
+        }
+
         const container = document.createElement('div');
         container.id = 'ivac-assistant-main';
         container.style.cssText = `
@@ -81,7 +97,6 @@
             font-family: Arial, sans-serif;
             font-size: 14px;
             max-height: 85vh;
-            resize: both;
             overflow: auto;
         `;
 
@@ -129,7 +144,6 @@
                 </div>
             </div>
 
-            <!-- Tab Navigation -->
             <div id="tab-navigation" style="
                 background: #f8f9fa;
                 border-bottom: 1px solid #dee2e6;
@@ -170,23 +184,19 @@
             </div>
 
             <div id="panel-content" style="padding: 20px;">
-                <!-- Login Tab -->
                 <div id="login-tab" class="tab-content active">
                     ${createLoginTabContent()}
                 </div>
 
-                <!-- App Booking Tab -->
                 <div id="booking-tab" class="tab-content" style="display: none;">
                     ${createBookingTabContent()}
                 </div>
 
-                <!-- Payment Tab -->
                 <div id="payment-tab" class="tab-content" style="display: none;">
                     ${createPaymentTabContent()}
                 </div>
             </div>
 
-            <!-- Resize Handle -->
             <div id="resize-handle" style="
                 position: absolute;
                 bottom: 0;
@@ -201,16 +211,20 @@
 
         document.body.appendChild(container);
 
+        console.log('Panel created successfully');
+
+        // Initialize features
         makeDraggable(container);
         makeResizable(container);
-        setupEventListeners();
         setupTabSwitching();
+        setupEventListeners();
         loadPersistedData();
+
+        console.log('IVAC Assistant loaded successfully');
     }
 
     function createLoginTabContent() {
         return `
-            <!-- Access Token Display (Fixed at top) -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Access Token:</label>
                 <div style="display: flex; gap: 5px;">
@@ -222,7 +236,7 @@
                         background: #f0f8ff;
                         font-size: 11px;
                         box-sizing: border-box;
-                    " placeholder="Token will appear here after successful login">
+                    " placeholder="Token will appear here after successful login" readonly>
                     <button id="refresh-token-btn" style="
                         padding: 8px 12px;
                         background: #6f42c1;
@@ -235,7 +249,6 @@
                 </div>
             </div>
 
-            <!-- Captcha Token Display -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Captcha Token:</label>
                 <input type="text" id="captcha-token" readonly style="
@@ -249,30 +262,27 @@
                 " placeholder="Token will appear here after verification">
             </div>
 
-            <!-- Cloudflare Sitekey and Load Button -->
-<div style="display: flex; margin-bottom: 15px; gap: 10px;">
-    <input type="text" id="sitekey" value="${CLOUDFLARE_SITEKEYS.login}" placeholder="Enter Cloudflare sitekey" style="
-        flex: 2;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-sizing: border-box;
-    ">
-    <button id="load-captcha" style="
-        flex: 1;
-        padding: 8px 12px;
-        background: #007cba;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-        white-space: nowrap;
-        min-width: 100px;
-    ">Load CAPTCHA</button>
-</div>
+            <div style="display: flex; margin-bottom: 15px; gap: 10px;">
+                <input type="text" id="sitekey" value="${CLOUDFLARE_SITEKEYS.login}" placeholder="Enter Cloudflare sitekey" style="
+                    flex: 2;
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                ">
+                <button id="load-captcha" style="
+                    flex: 1;
+                    padding: 8px 12px;
+                    background: #007cba;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    min-width: 100px;
+                ">Load CAPTCHA</button>
+            </div>
 
-            <!-- Captcha Container -->
             <div id="captcha-container" style="
                 margin-bottom: 15px;
                 min-height: 80px;
@@ -288,7 +298,6 @@
                 Click "Load CAPTCHA" to verify
             </div>
 
-            <!-- Mobile Number Input -->
             <div style="display: flex; margin-bottom: 15px; gap: 10px;">
                 <input type="tel" id="mobile-number" placeholder="Enter mobile number" style="
                     flex: 1;
@@ -299,17 +308,15 @@
                 " maxlength="11">
                 <button id="verify-mobile" style="
                     padding: 8px 12px;
-                    background: #28a745;
+                    background: #6c757d;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    transition: background-color 0.3s;
                     min-width: 80px;
-                ">Proceed</button>
+                " disabled>Proceed</button>
             </div>
 
-            <!-- Password Input -->
             <div style="display: flex; margin-bottom: 15px; gap: 10px;">
                 <input type="password" id="password" placeholder="Enter password" style="
                     flex: 1;
@@ -320,17 +327,15 @@
                 ">
                 <button id="submit-password" style="
                     padding: 8px 12px;
-                    background: #28a745;
+                    background: #6c757d;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    transition: background-color 0.3s;
                     min-width: 80px;
                 " disabled>Proceed</button>
             </div>
 
-            <!-- OTP Input -->
             <div style="display: flex; margin-bottom: 15px; gap: 10px;">
                 <input type="text" id="otp" placeholder="Enter OTP" style="
                     flex: 1;
@@ -341,17 +346,15 @@
                 " maxlength="6">
                 <button id="submit-otp" style="
                     padding: 8px 12px;
-                    background: #28a745;
+                    background: #6c757d;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    transition: background-color 0.3s;
                     min-width: 80px;
                 " disabled>Submit OTP</button>
             </div>
 
-            <!-- Status Display -->
             <div id="status" style="
                 margin-top: 15px;
                 padding: 10px;
@@ -368,7 +371,6 @@
 
     function createBookingTabContent() {
         return `
-            <!-- Access Token Field -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Access Token:</label>
                 <div style="display: flex; gap: 5px;">
@@ -380,7 +382,7 @@
                         background: #f0f8ff;
                         font-size: 11px;
                         box-sizing: border-box;
-                    " placeholder="Access token from login">
+                    " placeholder="Access token from login" readonly>
                     <button id="booking-refresh-token-btn" style="
                         padding: 8px 12px;
                         background: #6f42c1;
@@ -393,7 +395,6 @@
                 </div>
             </div>
 
-            <!-- Application Info Preview -->
             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                 <h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">Application Info Preview</h4>
 
@@ -426,7 +427,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <div>
                         <label style="display: block; font-size: 11px; color: #666; margin-bottom: 3px;">Web File ID:</label>
-                        <input type="text" id="webfile-id" value="BGDCV0F0A525" class="editable-field" style="
+                        <input type="text" id="webfile-id" value="${PERSONAL_INFO.webfile_id}" class="editable-field" style="
                             width: 100%;
                             padding: 6px;
                             border: 1px solid #ddd;
@@ -438,7 +439,7 @@
                     </div>
                     <div>
                         <label style="display: block; font-size: 11px; color: #666; margin-bottom: 3px;">Web File ID Repeat:</label>
-                        <input type="text" id="webfile-id-repeat" value="BGDCV0F0A525" class="editable-field" style="
+                        <input type="text" id="webfile-id-repeat" value="${PERSONAL_INFO.webfile_id}" class="editable-field" style="
                             width: 100%;
                             padding: 6px;
                             border: 1px solid #ddd;
@@ -518,7 +519,6 @@
                     ">IVF Pregnancy Treatment</textarea>
                 </div>
 
-                <!-- Parse & Fill Button moved here -->
                 <div style="margin-bottom: 10px;">
                     <button id="parse-fill-btn" style="
                         width: 100%;
@@ -532,29 +532,27 @@
                 </div>
             </div>
 
-            <!-- Cloudflare Sitekey and Load Button -->
-<div style="display: flex; margin-bottom: 15px; gap: 10px;">
-    <input type="text" id="booking-sitekey" value="${CLOUDFLARE_SITEKEYS.booking}" placeholder="Enter Cloudflare sitekey" style="
-        flex: 2;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-sizing: border-box;
-    ">
-    <button id="show-captcha-btn" style="
-        flex: 1;
-        padding: 8px 12px;
-        background: #fd7e14;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        white-space: nowrap;
-        min-width: 100px;
-    ">Load CAPTCHA</button>
-</div>
+            <div style="display: flex; margin-bottom: 15px; gap: 10px;">
+                <input type="text" id="booking-sitekey" value="${CLOUDFLARE_SITEKEYS.booking}" placeholder="Enter Cloudflare sitekey" style="
+                    flex: 2;
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                ">
+                <button id="show-captcha-btn" style="
+                    flex: 1;
+                    padding: 8px 12px;
+                    background: #fd7e14;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    min-width: 100px;
+                ">Load CAPTCHA</button>
+            </div>
 
-            <!-- Booking Captcha Container -->
             <div id="booking-captcha-container" style="
                 margin-bottom: 15px;
                 min-height: 80px;
@@ -570,7 +568,6 @@
                 Click "Load CAPTCHA" to load captcha widget
             </div>
 
-            <!-- Captcha Token Display -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; color: #666; margin-bottom: 3px;">Captcha Token:</label>
                 <input type="text" id="booking-captcha-token" readonly style="
@@ -584,9 +581,8 @@
                 " placeholder="Will be filled after captcha verification">
             </div>
 
-            <!-- Personal Info Preview Section -->
             <div style="background: #e8f5e8; border-radius: 8px; margin-bottom: 15px; border: 2px solid #28a745;">
-                <div style="padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="togglePersonalInfo()">
+                <div style="padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" id="personal-info-header">
                     <h4 style="margin: 0; color: #155724; font-size: 14px;">📋 Personal Info Preview (Hardcoded)</h4>
                     <span id="personal-toggle" style="color: #155724; font-weight: bold;">−</span>
                 </div>
@@ -632,9 +628,8 @@
                 </div>
             </div>
 
-            <!-- Family Members Preview Section -->
             <div style="background: #fff3e0; border-radius: 8px; margin-bottom: 15px; border: 2px solid #ff9800;">
-                <div style="padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="toggleFamilyInfo()">
+                <div style="padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" id="family-info-header">
                     <h4 style="margin: 0; color: #e65100; font-size: 14px;">👨‍👩‍👧‍👦 Family Members Preview (Hardcoded)</h4>
                     <span id="family-toggle" style="color: #e65100; font-weight: bold;">−</span>
                 </div>
@@ -643,7 +638,6 @@
                 </div>
             </div>
 
-            <!-- Action Buttons -->
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <button id="submit-application-info" style="
                     flex: 1;
@@ -674,7 +668,6 @@
                 " disabled>Overview</button>
             </div>
 
-            <!-- Booking Status Display -->
             <div id="booking-status" style="
                 margin-top: 15px;
                 padding: 10px;
@@ -691,7 +684,6 @@
 
     function createPaymentTabContent() {
         return `
-            <!-- Access Token Display -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Access Token:</label>
                 <div style="display: flex; gap: 5px;">
@@ -703,7 +695,7 @@
                         background: #f0f8ff;
                         font-size: 11px;
                         box-sizing: border-box;
-                    " placeholder="Access token from login">
+                    " placeholder="Access token from login" readonly>
                     <button id="payment-refresh-token-btn" style="
                         padding: 8px 12px;
                         background: #6f42c1;
@@ -716,7 +708,6 @@
                 </div>
             </div>
 
-            <!-- API Endpoint -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Payment API Endpoint:</label>
                 <input type="text" id="payment-api-endpoint" value="/api/v2/payment/h7j3wt-now-y0k3d6" style="
@@ -729,17 +720,14 @@
                 ">
             </div>
 
-            <!-- Payment Method Selection -->
             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dee2e6;">
                 <h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">💳 Payment Method Selection</h4>
-
                 <div style="display: flex; gap: 15px;">
                     <label style="display: flex; align-items: center; cursor: pointer; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; background: white; min-width: 120px;">
                         <input type="radio" name="payment-method" value="visacard" checked style="margin-right: 10px;">
                         <img src="https://securepay.sslcommerz.com/gwprocess/v4/image/gw1/visa.png" alt="VISA" style="width: 60px; height: auto; object-fit: contain; margin-right: 8px;">
                         <span style="font-weight: bold; color: #333;">VISA</span>
                     </label>
-
                     <label style="display: flex; align-items: center; cursor: pointer; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; background: white; min-width: 120px;">
                         <input type="radio" name="payment-method" value="mastercard" style="margin-right: 10px;">
                         <img src="https://securepay.sslcommerz.com/gwprocess/v4/image/gw1/master.png" alt="MASTER" style="width: 60px; height: auto; object-fit: contain; margin-right: 8px;">
@@ -748,7 +736,6 @@
                 </div>
             </div>
 
-            <!-- OTP Section -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">OTP Verification:</label>
                 <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
@@ -768,7 +755,7 @@
                     ">Send</button>
                     <button id="verify-otp-btn" style="
                         padding: 8px 12px;
-                        background: #28a745;
+                        background: #6c757d;
                         color: white;
                         border: none;
                         border-radius: 4px;
@@ -777,30 +764,27 @@
                 </div>
             </div>
 
-            <!-- Cloudflare Sitekey and Load Button -->
-<div style="display: flex; margin-bottom: 15px; gap: 10px;">
-    <input type="text" id="payment-sitekey" value="${CLOUDFLARE_SITEKEYS.payment}" placeholder="Enter Cloudflare sitekey" style="
-        flex: 2;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-sizing: border-box;
-    ">
-    <button id="load-payment-captcha" style="
-        flex: 1;
-        padding: 8px 12px;
-        background: #007cba;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-        white-space: nowrap;
-        min-width: 100px;
-    ">Load CAPTCHA</button>
-</div>
+            <div style="display: flex; margin-bottom: 15px; gap: 10px;">
+                <input type="text" id="payment-sitekey" value="${CLOUDFLARE_SITEKEYS.payment}" placeholder="Enter Cloudflare sitekey" style="
+                    flex: 2;
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                ">
+                <button id="load-payment-captcha" style="
+                    flex: 1;
+                    padding: 8px 12px;
+                    background: #007cba;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    min-width: 100px;
+                ">Load CAPTCHA</button>
+            </div>
 
-            <!-- Payment Captcha Container -->
             <div id="payment-captcha-container" style="
                 margin-bottom: 15px;
                 min-height: 80px;
@@ -816,7 +800,6 @@
                 Click "Load CAPTCHA" to verify
             </div>
 
-            <!-- Captcha Field Settings -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Captcha Field Name:</label>
@@ -843,7 +826,6 @@
                 </div>
             </div>
 
-            <!-- Appointment Date and Time -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Appointment Date:</label>
@@ -871,39 +853,37 @@
                 </div>
             </div>
 
-            <!-- Slot Management Buttons -->
-<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-    <button id="pay-slot-time-btn" style="
-        padding: 8px 12px;
-        background: #fd7e14;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    " disabled>Pay Slot Time</button>
-    <button id="default-slot-btn" style="
-        padding: 8px 12px;
-        background: #6c757d;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    " disabled>Default Slot</button>
-    <button id="default-date-btn" style="
-        padding: 8px 12px;
-        background: #17a2b8;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    " disabled>Default Date & Time</button>
-</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <button id="pay-slot-time-btn" style="
+                    padding: 8px 12px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                " disabled>Pay Slot Time</button>
+                <button id="default-slot-btn" style="
+                    padding: 8px 12px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                " disabled>Default Slot</button>
+                <button id="default-date-btn" style="
+                    padding: 8px 12px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                " disabled>Default Date & Time</button>
+            </div>
 
-            <!-- Payment Buttons -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                 <button id="pay-now-btn" style="
                     padding: 8px 12px;
-                    background: #dc3545;
+                    background: #6c757d;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -912,7 +892,7 @@
                 " disabled>Pay Now</button>
                 <button id="payment-btn" style="
                     padding: 8px 12px;
-                    background: #28a745;
+                    background: #6c757d;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -921,7 +901,6 @@
                 " disabled>Payment</button>
             </div>
 
-            <!-- Payment Status Display -->
             <div id="payment-status" style="
                 margin-top: 15px;
                 padding: 10px;
@@ -939,7 +918,6 @@
     function generateFamilyMembersHTML() {
         let html = '<div style="padding: 0 15px 15px 15px;">';
 
-        // Default to showing 2 family members, but will be updated dynamically
         for (let i = 1; i <= 4; i++) {
             const member = PERSONAL_INFO.family[i];
             if (!member) continue;
@@ -993,53 +971,7 @@
         return html;
     }
 
-    // Global functions for collapsible sections
-    window.togglePersonalInfo = function() {
-        const content = document.getElementById('personal-info-content');
-        const toggle = document.getElementById('personal-toggle');
-
-        if (content.style.display === 'none') {
-            content.style.display = 'block';
-            toggle.textContent = '−';
-        } else {
-            content.style.display = 'none';
-            toggle.textContent = '+';
-        }
-    };
-
-    window.toggleFamilyInfo = function() {
-        const content = document.getElementById('family-info-content');
-        const toggle = document.getElementById('family-toggle');
-
-        if (content.style.display === 'none') {
-            content.style.display = 'block';
-            toggle.textContent = '−';
-        } else {
-            content.style.display = 'none';
-            toggle.textContent = '+';
-        }
-    };
-
-    function loadPersistedData() {
-        // Load access token from localStorage on page load
-        const accessToken = localStorage.getItem('access_token');
-        if (accessToken) {
-            document.getElementById('access-token-display').value = accessToken;
-            document.getElementById('booking-access-token').value = accessToken;
-            document.getElementById('payment-access-token').value = accessToken;
-        }
-
-        // Load user data
-        const authName = localStorage.getItem('auth_name');
-        const authEmail = localStorage.getItem('auth_email');
-        const authPhone = localStorage.getItem('auth_phone');
-
-        if (authName || authEmail || authPhone) {
-            updateStatus('Existing session data loaded. You may be already logged in.', 'info');
-            updateBookingStatus('Session data available. Personal info is hardcoded and ready to use.', 'info');
-        }
-    }
-
+    // === TAB SWITCHING ===
     function setupTabSwitching() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
@@ -1048,7 +980,6 @@
             button.addEventListener('click', () => {
                 const targetTab = button.dataset.tab;
 
-                // Remove active class from all buttons and contents
                 tabButtons.forEach(btn => {
                     btn.classList.remove('active');
                     btn.style.background = '#f8f9fa';
@@ -1060,7 +991,6 @@
                     content.style.display = 'none';
                 });
 
-                // Add active class to clicked button and corresponding content
                 button.classList.add('active');
                 button.style.background = '#007bff';
                 button.style.color = 'white';
@@ -1071,7 +1001,7 @@
                     targetContent.style.display = 'block';
                 }
 
-                // Sync access tokens between tabs
+                // Sync tokens
                 const loginToken = document.getElementById('access-token-display').value;
                 if (loginToken) {
                     if (targetTab === 'booking') {
@@ -1084,8 +1014,127 @@
         });
     }
 
-    // [Previous makeDraggable, makeResizable, and other utility functions remain the same...]
+    // === EVENT LISTENERS ===
+    function setupEventListeners() {
+        // Panel controls
+        document.getElementById('close-panel').addEventListener('click', () => {
+            document.getElementById('ivac-assistant-main').remove();
+            window.IVACAssistantLoaded = false;
+        });
 
+        document.getElementById('minimize-panel').addEventListener('click', toggleMinimize);
+
+        // Setup tab-specific listeners
+        setupLoginEventListeners();
+        setupBookingEventListeners();
+        setupPaymentEventListeners();
+    }
+
+    function setupLoginEventListeners() {
+        const loadCaptchaBtn = document.getElementById('load-captcha');
+        const verifyMobileBtn = document.getElementById('verify-mobile');
+        const submitPasswordBtn = document.getElementById('submit-password');
+        const submitOtpBtn = document.getElementById('submit-otp');
+        const refreshTokenBtn = document.getElementById('refresh-token-btn');
+
+        loadCaptchaBtn.addEventListener('click', loadCloudflareWidget);
+        verifyMobileBtn.addEventListener('click', verifyMobile);
+        submitPasswordBtn.addEventListener('click', submitPassword);
+        submitOtpBtn.addEventListener('click', submitOTP);
+        refreshTokenBtn.addEventListener('click', loadAccessTokenFromStorage);
+
+        // Enable/disable buttons based on input
+        document.getElementById('mobile-number').addEventListener('input', (e) => {
+            const token = document.getElementById('captcha-token').value;
+            verifyMobileBtn.disabled = !token || !e.target.value;
+            verifyMobileBtn.style.background = verifyMobileBtn.disabled ? '#6c757d' : '#28a745';
+        });
+
+        document.getElementById('password').addEventListener('input', (e) => {
+            submitPasswordBtn.disabled = !e.target.value;
+            submitPasswordBtn.style.background = submitPasswordBtn.disabled ? '#6c757d' : '#28a745';
+        });
+
+        document.getElementById('otp').addEventListener('input', (e) => {
+            submitOtpBtn.disabled = !e.target.value;
+            submitOtpBtn.style.background = submitOtpBtn.disabled ? '#6c757d' : '#28a745';
+        });
+    }
+
+    function setupBookingEventListeners() {
+        const parseFillBtn = document.getElementById('parse-fill-btn');
+        const showCaptchaBtn = document.getElementById('show-captcha-btn');
+        const submitApplicationBtn = document.getElementById('submit-application-info');
+        const submitPersonalBtn = document.getElementById('submit-personal-info');
+        const submitOverviewBtn = document.getElementById('submit-overview');
+        const bookingRefreshTokenBtn = document.getElementById('booking-refresh-token-btn');
+        const familyCountInput = document.getElementById('family-count');
+
+        parseFillBtn.addEventListener('click', toggleEditableFields);
+        showCaptchaBtn.addEventListener('click', loadBookingCaptcha);
+        submitApplicationBtn.addEventListener('click', submitApplicationInfo);
+        submitPersonalBtn.addEventListener('click', submitPersonalInfo);
+        submitOverviewBtn.addEventListener('click', submitOverview);
+        bookingRefreshTokenBtn.addEventListener('click', loadBookingAccessTokenFromStorage);
+        familyCountInput.addEventListener('input', updateFamilyMembersDisplay);
+
+        // Collapsible sections
+        document.getElementById('personal-info-header').addEventListener('click', () => {
+            const content = document.getElementById('personal-info-content');
+            const toggle = document.getElementById('personal-toggle');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggle.textContent = '−';
+            } else {
+                content.style.display = 'none';
+                toggle.textContent = '+';
+            }
+        });
+
+        document.getElementById('family-info-header').addEventListener('click', () => {
+            const content = document.getElementById('family-info-content');
+            const toggle = document.getElementById('family-toggle');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggle.textContent = '−';
+            } else {
+                content.style.display = 'none';
+                toggle.textContent = '+';
+            }
+        });
+    }
+
+    function setupPaymentEventListeners() {
+        const paymentRefreshTokenBtn = document.getElementById('payment-refresh-token-btn');
+        const sendOtpBtn = document.getElementById('send-otp-btn');
+        const verifyOtpBtn = document.getElementById('verify-otp-btn');
+        const loadPaymentCaptchaBtn = document.getElementById('load-payment-captcha');
+        const paySlotTimeBtn = document.getElementById('pay-slot-time-btn');
+        const defaultSlotBtn = document.getElementById('default-slot-btn');
+        const defaultDateBtn = document.getElementById('default-date-btn');
+        const payNowBtn = document.getElementById('pay-now-btn');
+        const paymentBtn = document.getElementById('payment-btn');
+
+        paymentRefreshTokenBtn.addEventListener('click', loadPaymentAccessTokenFromStorage);
+        sendOtpBtn.addEventListener('click', () => sendPaymentOTP(0));
+        verifyOtpBtn.addEventListener('click', verifyPaymentOTP);
+        loadPaymentCaptchaBtn.addEventListener('click', loadPaymentCaptcha);
+        paySlotTimeBtn.addEventListener('click', getPaymentSlotTime);
+        defaultSlotBtn.addEventListener('click', setDefaultSlot);
+        defaultDateBtn.addEventListener('click', setDefaultDateTime);
+        payNowBtn.addEventListener('click', submitPayment);
+        paymentBtn.addEventListener('click', openPaymentLink);
+
+        document.getElementById('payment-otp').addEventListener('input', (e) => {
+            const otpValue = e.target.value;
+            verifyOtpBtn.disabled = otpValue.length < 6;
+            verifyOtpBtn.style.background = verifyOtpBtn.disabled ? '#6c757d' : '#28a745';
+        });
+
+        document.getElementById('appointment-date').addEventListener('change', handleAppointmentDateChange);
+    }
+
+    // === UTILITY FUNCTIONS ===
     function makeDraggable(element) {
         const header = element.querySelector('#panel-header');
         let isDragging = false;
@@ -1097,11 +1146,9 @@
 
         function dragStart(e) {
             if (e.target.tagName === 'BUTTON') return;
-
             initialX = e.clientX - xOffset;
             initialY = e.clientY - yOffset;
-
-            if (e.target === header) {
+            if (e.target === header || header.contains(e.target)) {
                 isDragging = true;
                 header.style.cursor = 'grabbing';
             }
@@ -1112,7 +1159,6 @@
                 e.preventDefault();
                 currentX = e.clientX - initialX;
                 currentY = e.clientY - initialY;
-
                 xOffset = currentX;
                 yOffset = currentY;
 
@@ -1130,7 +1176,7 @@
             }
         }
 
-        function dragEnd(e) {
+        function dragEnd() {
             if (isDragging) {
                 initialX = currentX;
                 initialY = currentY;
@@ -1160,18 +1206,14 @@
 
         function doResize(e) {
             if (!isResizing) return;
-
             const width = startWidth + e.clientX - startX;
             const height = startHeight + e.clientY - startY;
-
             const minWidth = 400;
             const minHeight = 500;
             const maxWidth = window.innerWidth * 0.8;
             const maxHeight = window.innerHeight * 0.9;
-
             const newWidth = Math.max(minWidth, Math.min(width, maxWidth));
             const newHeight = Math.max(minHeight, Math.min(height, maxHeight));
-
             element.style.width = newWidth + 'px';
             element.style.height = newHeight + 'px';
         }
@@ -1182,136 +1224,82 @@
         }
     }
 
-    function setupEventListeners() {
-        // Common panel controls
-        const closeBtn = document.getElementById('close-panel');
+    function toggleMinimize() {
+        const content = document.getElementById('panel-content');
+        const container = document.getElementById('ivac-assistant-main');
         const minimizeBtn = document.getElementById('minimize-panel');
+        const tabNav = document.getElementById('tab-navigation');
 
-        closeBtn.addEventListener('click', () => {
-            document.getElementById('ivac-assistant-main').remove();
-        });
-
-        minimizeBtn.addEventListener('click', toggleMinimize);
-
-        // Login tab event listeners
-        setupLoginEventListeners();
-
-        // Booking tab event listeners
-        setupBookingEventListeners();
-
-        // Payment tab event listeners
-        setupPaymentEventListeners();
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            tabNav.style.display = 'flex';
+            container.style.height = 'auto';
+            container.style.maxHeight = '85vh';
+            minimizeBtn.innerHTML = '−';
+        } else {
+            content.style.display = 'none';
+            tabNav.style.display = 'none';
+            container.style.height = 'auto';
+            container.style.maxHeight = 'none';
+            minimizeBtn.innerHTML = '+';
+        }
     }
 
-    function setupLoginEventListeners() {
-        const loadCaptchaBtn = document.getElementById('load-captcha');
-        const verifyMobileBtn = document.getElementById('verify-mobile');
-        const submitPasswordBtn = document.getElementById('submit-password');
-        const submitOtpBtn = document.getElementById('submit-otp');
-        const refreshTokenBtn = document.getElementById('refresh-token-btn');
-
-        loadCaptchaBtn.addEventListener('click', loadCloudflareWidget);
-        verifyMobileBtn.addEventListener('click', verifyMobile);
-        submitPasswordBtn.addEventListener('click', submitPassword);
-        submitOtpBtn.addEventListener('click', submitOTP);
-        refreshTokenBtn.addEventListener('click', loadAccessTokenFromStorage);
-
-        // Save sitekey when changed
-        document.getElementById('sitekey').addEventListener('input', (e) => {
-            localStorage.setItem('ivac_sitekey', e.target.value);
-        });
-
-        // Enable/disable buttons based on input
-        document.getElementById('mobile-number').addEventListener('input', (e) => {
-            const token = document.getElementById('captcha-token').value;
-            verifyMobileBtn.disabled = !token || !e.target.value;
-            verifyMobileBtn.style.background = verifyMobileBtn.disabled ? '#6c757d' : '#28a745';
-        });
-
-        document.getElementById('password').addEventListener('input', (e) => {
-            submitPasswordBtn.disabled = !e.target.value;
-            submitPasswordBtn.style.background = submitPasswordBtn.disabled ? '#6c757d' : '#28a745';
-        });
-
-        document.getElementById('otp').addEventListener('input', (e) => {
-            submitOtpBtn.disabled = !e.target.value;
-            submitOtpBtn.style.background = submitOtpBtn.disabled ? '#6c757d' : '#28a745';
-        });
-
-    }
-
-    function setupBookingEventListeners() {
-        const parseFillBtn = document.getElementById('parse-fill-btn');
-        const showCaptchaBtn = document.getElementById('show-captcha-btn');
-        const submitApplicationBtn = document.getElementById('submit-application-info');
-        const submitPersonalBtn = document.getElementById('submit-personal-info');
-        const submitOverviewBtn = document.getElementById('submit-overview');
-        const bookingRefreshTokenBtn = document.getElementById('booking-refresh-token-btn');
-        const familyCountInput = document.getElementById('family-count');
-
-        parseFillBtn.addEventListener('click', toggleEditableFields);
-        showCaptchaBtn.addEventListener('click', loadBookingCaptcha);
-        submitApplicationBtn.addEventListener('click', submitApplicationInfo);
-        submitPersonalBtn.addEventListener('click', submitPersonalInfo);
-        submitOverviewBtn.addEventListener('click', submitOverview);
-        bookingRefreshTokenBtn.addEventListener('click', loadBookingAccessTokenFromStorage);
-
-        // Family count change handler
-        familyCountInput.addEventListener('input', updateFamilyMembersDisplay);
-    }
-
-    function setupPaymentEventListeners() {
-        const paymentRefreshTokenBtn = document.getElementById('payment-refresh-token-btn');
-        const sendOtpBtn = document.getElementById('send-otp-btn');
-        const verifyOtpBtn = document.getElementById('verify-otp-btn');
-        const loadPaymentCaptchaBtn = document.getElementById('load-payment-captcha');
-        const paySlotTimeBtn = document.getElementById('pay-slot-time-btn');
-        const defaultSlotBtn = document.getElementById('default-slot-btn');
-        const defaultDateBtn = document.getElementById('default-date-btn');
-        const payNowBtn = document.getElementById('pay-now-btn');
-        const paymentBtn = document.getElementById('payment-btn');
-
-        paymentRefreshTokenBtn.addEventListener('click', loadPaymentAccessTokenFromStorage);
-        sendOtpBtn.addEventListener('click', sendPaymentOTP);
-        verifyOtpBtn.addEventListener('click', verifyPaymentOTP);
-        loadPaymentCaptchaBtn.addEventListener('click', loadPaymentCaptcha);
-        paySlotTimeBtn.addEventListener('click', getPaymentSlotTime);
-        defaultSlotBtn.addEventListener('click', setDefaultSlot);
-        defaultDateBtn.addEventListener('click', setDefaultDateTime);
-        payNowBtn.addEventListener('click', submitPayment);
-        paymentBtn.addEventListener('click', openPaymentLink);
-
-        // Enable/disable buttons based on input
-        document.getElementById('payment-otp').addEventListener('input', (e) => {
-            const otpValue = e.target.value;
-            verifyOtpBtn.disabled = otpValue.length < 6;
-            verifyOtpBtn.style.background = verifyOtpBtn.disabled ? '#6c757d' : '#28a745';
-        });
-
-        // Handle appointment date selection
-        document.getElementById('appointment-date').addEventListener('change', handleAppointmentDateChange);
-
-        // Enable default date button after OTP verification
-document.getElementById('default-date-btn').disabled = false;
-document.getElementById('default-date-btn').style.background = '#17a2b8';
-    }
-
-    function updateFamilyMembersDisplay() {
-        const familyCount = parseInt(document.getElementById('family-count').value) || 0;
-
-        // Show/hide family members based on count
-        for (let i = 1; i <= 4; i++) {
-            const memberDiv = document.getElementById(`family-member-${i}`);
-            if (memberDiv) {
-                if (i <= familyCount) {
-                    memberDiv.style.display = 'block';
-                } else {
-                    memberDiv.style.display = 'none';
-                }
-            }
+    function loadPersistedData() {
+        const accessToken = localStorage.getItem('access_token');
+        if (accessToken) {
+            document.getElementById('access-token-display').value = accessToken;
+            document.getElementById('booking-access-token').value = accessToken;
+            document.getElementById('payment-access-token').value = accessToken;
         }
 
-        updateBookingStatus(`Family members display updated: showing ${familyCount} members`, 'info');
+        const authName = localStorage.getItem('auth_name');
+        const authEmail = localStorage.getItem('auth_email');
+        const authPhone = localStorage.getItem('auth_phone');
+
+        if (authName || authEmail || authPhone) {
+            updateStatus('Existing session data loaded. You may be already logged in.', 'info');
+            updateBookingStatus('Session data available. Personal info is hardcoded and ready to use.', 'info');
+        }
+    }
+
+    function updateStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        const colors = {
+            info: '#d1ecf1',
+            success: '#d4edda',
+            error: '#f8d7da',
+            warning: '#fff3cd'
+        };
+        statusDiv.style.backgroundColor = colors[type] || colors.info;
+        statusDiv.innerHTML = message;
+        console.log(`[IVAC - Login] ${message}`);
+    }
+
+    function updateBookingStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('booking-status');
+        const colors = {
+            info: '#d1ecf1',
+            success: '#d4edda',
+            error: '#f8d7da',
+            warning: '#fff3cd'
+        };
+        statusDiv.style.backgroundColor = colors[type] || colors.info;
+        statusDiv.innerHTML = message;
+        console.log(`[IVAC - Booking] ${message}`);
+    }
+
+    function updatePaymentStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('payment-status');
+        const colors = {
+            info: '#d1ecf1',
+            success: '#d4edda',
+            error: '#f8d7da',
+            warning: '#fff3cd'
+        };
+        statusDiv.style.backgroundColor = colors[type] || colors.info;
+        statusDiv.innerHTML = message;
+        console.log(`[IVAC - Payment] ${message}`);
     }
 
     function loadAccessTokenFromStorage() {
@@ -1346,6 +1334,17 @@ document.getElementById('default-date-btn').style.background = '#17a2b8';
         }
     }
 
+    function updateFamilyMembersDisplay() {
+        const familyCount = parseInt(document.getElementById('family-count').value) || 0;
+        for (let i = 1; i <= 4; i++) {
+            const memberDiv = document.getElementById(`family-member-${i}`);
+            if (memberDiv) {
+                memberDiv.style.display = i <= familyCount ? 'block' : 'none';
+            }
+        }
+        updateBookingStatus(`Family members display updated: showing ${familyCount} members`, 'info');
+    }
+
     function toggleEditableFields() {
         const editableFields = document.querySelectorAll('.editable-field');
         const button = document.getElementById('parse-fill-btn');
@@ -1366,226 +1365,7 @@ document.getElementById('default-date-btn').style.background = '#17a2b8';
         button.style.background = button.textContent === 'Lock Fields' ? '#dc3545' : '#17a2b8';
     }
 
-    function loadBookingCaptcha() {
-        const sitekey = document.getElementById('booking-sitekey').value.trim();
-
-        if (!sitekey) {
-            updateBookingStatus('Please enter the Cloudflare sitekey', 'error');
-            return;
-        }
-
-        updateBookingStatus('Loading Cloudflare widget...', 'info');
-
-        const container = document.getElementById('booking-captcha-container');
-        container.innerHTML = '';
-
-        if (!window.turnstile) {
-            const script = document.createElement('script');
-            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-            script.onload = () => renderBookingWidget(sitekey);
-            document.head.appendChild(script);
-        } else {
-            renderBookingWidget(sitekey);
-        }
-    }
-
-    function renderBookingWidget(sitekey) {
-        const container = document.getElementById('booking-captcha-container');
-
-        try {
-            window.turnstile.render(container, {
-                sitekey: sitekey,
-                callback: function(token) {
-                    document.getElementById('booking-captcha-token').value = token;
-                    updateBookingStatus('Booking captcha verified successfully!', 'success');
-                },
-                'error-callback': function() {
-                    updateBookingStatus('Booking captcha verification failed', 'error');
-                    document.getElementById('booking-captcha-token').value = '';
-                }
-            });
-            updateBookingStatus('Booking captcha widget loaded. Please complete verification.', 'info');
-        } catch (error) {
-            updateBookingStatus('Error loading booking captcha widget: ' + error.message, 'error');
-        }
-    }
-
-    function toggleMinimize() {
-        const content = document.getElementById('panel-content');
-        const container = document.getElementById('ivac-assistant-main');
-        const minimizeBtn = document.getElementById('minimize-panel');
-        const tabNav = document.getElementById('tab-navigation');
-
-        if (content.style.display === 'none') {
-            content.style.display = 'block';
-            tabNav.style.display = 'flex';
-            container.style.height = 'auto';
-            container.style.maxHeight = '85vh';
-            minimizeBtn.innerHTML = '−';
-            minimizeBtn.title = 'Minimize';
-        } else {
-            content.style.display = 'none';
-            tabNav.style.display = 'none';
-            container.style.height = 'auto';
-            container.style.maxHeight = 'none';
-            minimizeBtn.innerHTML = '+';
-            minimizeBtn.title = 'Restore';
-        }
-    }
-
-    function updateStatus(message, type = 'info') {
-        const statusDiv = document.getElementById('status');
-        const colors = {
-            info: '#d1ecf1',
-            success: '#d4edda',
-            error: '#f8d7da',
-            warning: '#fff3cd'
-        };
-
-        statusDiv.style.backgroundColor = colors[type] || colors.info;
-        statusDiv.innerHTML = message;
-
-        console.log(`[IVAC Assistant - Login] ${message}`);
-    }
-
-    function updateBookingStatus(message, type = 'info') {
-        const statusDiv = document.getElementById('booking-status');
-        const colors = {
-            info: '#d1ecf1',
-            success: '#d4edda',
-            error: '#f8d7da',
-            warning: '#fff3cd'
-        };
-
-        statusDiv.style.backgroundColor = colors[type] || colors.info;
-        statusDiv.innerHTML = message;
-
-        console.log(`[IVAC Assistant - Booking] ${message}`);
-    }
-
-    function updatePaymentStatus(message, type = 'info') {
-        const statusDiv = document.getElementById('payment-status');
-        const colors = {
-            info: '#d1ecf1',
-            success: '#d4edda',
-            error: '#f8d7da',
-            warning: '#fff3cd'
-        };
-
-        statusDiv.style.backgroundColor = colors[type] || colors.info;
-        statusDiv.innerHTML = message;
-
-        console.log(`[IVAC Assistant - Payment] ${message}`);
-    }
-
-    function loadCloudflareWidget() {
-        const sitekey = document.getElementById('sitekey').value.trim();
-
-        if (!sitekey) {
-            updateStatus('Please enter the Cloudflare sitekey', 'error');
-            return;
-        }
-
-        updateStatus('Loading Cloudflare widget...', 'info');
-
-        const container = document.getElementById('captcha-container');
-        container.innerHTML = '';
-
-        if (!window.turnstile) {
-            const script = document.createElement('script');
-            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-            script.onload = () => renderWidget(sitekey);
-            document.head.appendChild(script);
-        } else {
-            renderWidget(sitekey);
-        }
-    }
-
-    function renderWidget(sitekey) {
-        const container = document.getElementById('captcha-container');
-
-        try {
-            window.turnstile.render(container, {
-                sitekey: sitekey,
-                callback: function(token) {
-                    document.getElementById('captcha-token').value = token;
-                    updateStatus('Captcha verified successfully!', 'success');
-
-                    const mobileInput = document.getElementById('mobile-number');
-                    const verifyBtn = document.getElementById('verify-mobile');
-                    if (mobileInput.value) {
-                        verifyBtn.disabled = false;
-                        verifyBtn.style.background = '#28a745';
-                    }
-                },
-                'error-callback': function() {
-                    updateStatus('Captcha verification failed', 'error');
-                    document.getElementById('captcha-token').value = '';
-                }
-            });
-            updateStatus('Cloudflare widget loaded. Please complete verification.', 'info');
-        } catch (error) {
-            updateStatus('Error loading Cloudflare widget: ' + error.message, 'error');
-        }
-    }
-
-    // Functions to handle defaults
-function setDefaultDate() {
-    const dateSelect = document.getElementById('appointment-date');
-    const currentDate = new Date();
-
-    // Try to find a suitable default date (e.g., 7 days from now)
-    const defaultDate = new Date(currentDate);
-    defaultDate.setDate(currentDate.getDate() + 7);
-    const defaultDateString = defaultDate.toISOString().split('T')[0]; // Format: yyyy-mm-dd
-
-    // Add default option if not exists
-    let defaultOption = Array.from(dateSelect.options).find(option => option.value === defaultDateString);
-    if (!defaultOption) {
-        defaultOption = document.createElement('option');
-        defaultOption.value = defaultDateString;
-        defaultOption.textContent = defaultDateString;
-        dateSelect.appendChild(defaultOption);
-    }
-
-    dateSelect.value = defaultDateString;
-    updatePaymentStatus(`Default appointment date set: ${defaultDateString}`, 'info');
-
-    // Automatically trigger time loading for default date
-    handleAppointmentDateChange({ target: { value: defaultDateString } });
-
-    return defaultDateString;
-}
-
-function setDefaultDateTime() {
-    const dateSelect = document.getElementById('appointment-date');
-    const timeSelect = document.getElementById('appointment-time');
-
-    // Set default date first
-    const defaultDate = setDefaultDate();
-
-    // Set default time
-    const defaultTime = '09:00 - 09:59';
-    let defaultTimeOption = Array.from(timeSelect.options).find(option => option.value === defaultTime);
-    if (!defaultTimeOption) {
-        defaultTimeOption = document.createElement('option');
-        defaultTimeOption.value = defaultTime;
-        defaultTimeOption.textContent = defaultTime;
-        timeSelect.appendChild(defaultTimeOption);
-    }
-
-    timeSelect.value = defaultTime;
-    timeSelect.disabled = false;
-
-    updatePaymentStatus(`Default date & time set: ${defaultDate} at ${defaultTime}`, 'success');
-
-    // Enable payment buttons
-    checkPaymentReadiness();
-
-    return { date: defaultDate, time: defaultTime };
-}
-
-    // Custom fetch function
+    // === API FUNCTIONS ===
     async function customFetch(url, options) {
         const defaultHeaders = {
             'Content-Type': 'application/json',
@@ -1614,6 +1394,54 @@ function setDefaultDateTime() {
             status: response.status,
             ok: response.ok
         };
+    }
+
+    // === LOGIN FUNCTIONS ===
+    function loadCloudflareWidget() {
+        const sitekey = document.getElementById('sitekey').value.trim();
+        if (!sitekey) {
+            updateStatus('Please enter the Cloudflare sitekey', 'error');
+            return;
+        }
+
+        updateStatus('Loading Cloudflare widget...', 'info');
+        const container = document.getElementById('captcha-container');
+        container.innerHTML = '';
+
+        if (!window.turnstile) {
+            const script = document.createElement('script');
+            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+            script.onload = () => renderWidget(sitekey);
+            document.head.appendChild(script);
+        } else {
+            renderWidget(sitekey);
+        }
+    }
+
+    function renderWidget(sitekey) {
+        const container = document.getElementById('captcha-container');
+        try {
+            window.turnstile.render(container, {
+                sitekey: sitekey,
+                callback: function(token) {
+                    document.getElementById('captcha-token').value = token;
+                    updateStatus('Captcha verified successfully!', 'success');
+                    const mobileInput = document.getElementById('mobile-number');
+                    const verifyBtn = document.getElementById('verify-mobile');
+                    if (mobileInput.value) {
+                        verifyBtn.disabled = false;
+                        verifyBtn.style.background = '#28a745';
+                    }
+                },
+                'error-callback': function() {
+                    updateStatus('Captcha verification failed', 'error');
+                    document.getElementById('captcha-token').value = '';
+                }
+            });
+            updateStatus('Cloudflare widget loaded. Please complete verification.', 'info');
+        } catch (error) {
+            updateStatus('Error loading Cloudflare widget: ' + error.message, 'error');
+        }
     }
 
     async function verifyMobile() {
@@ -1647,7 +1475,6 @@ function setDefaultDateTime() {
                 const passwordBtn = document.getElementById('submit-password');
                 passwordBtn.disabled = false;
                 passwordBtn.style.background = '#28a745';
-
                 localStorage.setItem('user_phone', mobileNumber);
             } else {
                 updateStatus(`Mobile verification failed: ${result.message || 'Unknown error'}`, 'error');
@@ -1657,135 +1484,153 @@ function setDefaultDateTime() {
         }
     }
 
-async function submitPassword() {
-    const mobileNumber = document.getElementById('mobile-number').value.trim();
-    const password = document.getElementById('password').value.trim();
+    async function submitPassword() {
+        const mobileNumber = document.getElementById('mobile-number').value.trim();
+        const password = document.getElementById('password').value.trim();
 
-    if (!mobileNumber || !password) {
-        updateStatus('Please enter both mobile number and password', 'error');
-        return;
-    }
-
-    updateStatus('Submitting password...', 'info');
-
-    try {
-        const result = await customFetch('/api/v2/login', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'language': 'en'
-            },
-            body: {
-                mobile_no: mobileNumber,
-                password: password
-            }
-        });
-
-        if (result.status_code === 200) {
-            updateStatus('Password submitted successfully! Please enter OTP.', 'success');
-            localStorage.setItem('user_pwd', password);
-        } else if (result.status === 504 || result.status_code === 504) {
-            // Handle 504 specifically
-            updateStatus('⚠️ Server timeout (504), but OTP might still be sent. Please check your email and try entering OTP.', 'warning');
-            localStorage.setItem('user_pwd', password); // ✅ Still save password for OTP step
-        } else {
-            updateStatus(`Password submission failed: ${result.message || 'Unknown error'}`, 'error');
-            // Don't save password for actual failures
+        if (!mobileNumber || !password) {
+            updateStatus('Please enter both mobile number and password', 'error');
+            return;
         }
 
-        // ✅ Always enable OTP button regardless of password response
-        const otpBtn = document.getElementById('submit-otp');
-        otpBtn.disabled = false;
-        otpBtn.style.background = '#28a745';
+        updateStatus('Submitting password...', 'info');
 
-    } catch (error) {
-        // Handle network errors including 504
-        if (error.status === 504) {
-            updateStatus('⚠️ Server timeout (504), but OTP might still be sent. Please check your email and try entering OTP.', 'warning');
-            localStorage.setItem('user_pwd', password); // ✅ Save password even on timeout
-        } else {
+        try {
+            const result = await customFetch('/api/v2/login', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'language': 'en'
+                },
+                body: {
+                    mobile_no: mobileNumber,
+                    password: password
+                }
+            });
+
+            if (result.status_code === 200) {
+                updateStatus('Password submitted successfully! Please enter OTP.', 'success');
+                localStorage.setItem('user_pwd', password);
+            } else if (result.status === 504 || result.status_code === 504) {
+                updateStatus('⚠️ Server timeout (504), but OTP might still be sent. Please check your email and try entering OTP.', 'warning');
+                localStorage.setItem('user_pwd', password);
+            } else {
+                updateStatus(`Password submission failed: ${result.message || 'Unknown error'}`, 'error');
+            }
+
+            const otpBtn = document.getElementById('submit-otp');
+            otpBtn.disabled = false;
+            otpBtn.style.background = '#28a745';
+
+        } catch (error) {
+            if (error.status === 504) {
+                updateStatus('⚠️ Server timeout (504), but OTP might still be sent. Please check your email and try entering OTP.', 'warning');
+                localStorage.setItem('user_pwd', password);
+            } else {
+                updateStatus(`Network error: ${error.message}`, 'error');
+            }
+
+            const otpBtn = document.getElementById('submit-otp');
+            otpBtn.disabled = false;
+            otpBtn.style.background = '#28a745';
+        }
+    }
+
+    async function submitOTP() {
+        const otp = document.getElementById('otp').value.trim();
+        if (!otp) {
+            updateStatus('Please enter OTP', 'error');
+            return;
+        }
+
+        let mobileNumber = localStorage.getItem('user_phone') || document.getElementById('mobile-number').value.trim();
+        let password = localStorage.getItem('user_pwd') || document.getElementById('password').value.trim();
+
+        if (!mobileNumber || !password) {
+            updateStatus('Missing mobile number or password. Please fill them in the form above.', 'error');
+            return;
+        }
+
+        updateStatus('Submitting OTP...', 'info');
+
+        try {
+            const result = await customFetch('/api/v2/login-otp', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'language': 'en'
+                },
+                body: {
+                    mobile_no: mobileNumber,
+                    password: password,
+                    otp: otp
+                }
+            });
+
+            if (result.status_code === 200) {
+                const data = result.data;
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('auth_name', data.name);
+                localStorage.setItem('auth_email', data.email);
+                localStorage.setItem('auth_phone', data.mobile_no);
+                localStorage.setItem('auth_photo', data.profile_image);
+                localStorage.removeItem('user_pwd');
+
+                document.getElementById('access-token-display').value = data.access_token;
+                document.getElementById('booking-access-token').value = data.access_token;
+                document.getElementById('payment-access-token').value = data.access_token;
+
+                updateStatus('✅ Login completed successfully!', 'success');
+            } else {
+                updateStatus(`OTP submission failed: ${result.message || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
             updateStatus(`Network error: ${error.message}`, 'error');
         }
-
-        // ✅ Enable OTP button even on network errors
-        const otpBtn = document.getElementById('submit-otp');
-        otpBtn.disabled = false;
-        otpBtn.style.background = '#28a745';
-    }
-}
-
-async function submitOTP() {
-    const otp = document.getElementById('otp').value.trim();
-
-    if (!otp) {
-        updateStatus('Please enter OTP', 'error');
-        return;
     }
 
-    // Get credentials from form instead of localStorage only
-    let mobileNumber = localStorage.getItem('user_phone') || document.getElementById('mobile-number').value.trim();
-    let password = localStorage.getItem('user_pwd') || document.getElementById('password').value.trim();
+    // === BOOKING FUNCTIONS ===
+    function loadBookingCaptcha() {
+        const sitekey = document.getElementById('booking-sitekey').value.trim();
+        if (!sitekey) {
+            updateBookingStatus('Please enter the Cloudflare sitekey', 'error');
+            return;
+        }
 
-    if (!mobileNumber || !password) {
-        updateStatus('Missing mobile number or password. Please fill them in the form above.', 'error');
-        return;
-    }
+        updateBookingStatus('Loading Cloudflare widget...', 'info');
+        const container = document.getElementById('booking-captcha-container');
+        container.innerHTML = '';
 
-    updateStatus('Submitting OTP...', 'info');
-
-    try {
-        const result = await customFetch('/api/v2/login-otp', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'language': 'en'
-            },
-            body: {
-                mobile_no: mobileNumber,
-                password: password,
-                otp: otp
-            }
-        });
-
-        if (result.status_code === 200) {
-            const data = result.data;
-
-            // Store all the auth data
-            localStorage.setItem('access_token', data.access_token);
-            localStorage.setItem('auth_name', data.name);
-            localStorage.setItem('auth_email', data.email);
-            localStorage.setItem('auth_phone', data.mobile_no);
-            localStorage.setItem('auth_photo', data.profile_image);
-
-            localStorage.removeItem('user_pwd');
-
-            // Update the access token display fields
-            document.getElementById('access-token-display').value = data.access_token;
-            document.getElementById('booking-access-token').value = data.access_token;
-            document.getElementById('payment-access-token').value = data.access_token;
-
-            updateStatus('✅ Login completed successfully! (OTP worked despite password 504)', 'success');
-
+        if (!window.turnstile) {
+            const script = document.createElement('script');
+            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+            script.onload = () => renderBookingWidget(sitekey);
+            document.head.appendChild(script);
         } else {
-            updateStatus(`OTP submission failed: ${result.message || 'Unknown error'}`, 'error');
-        }
-    } catch (error) {
-        updateStatus(`Network error: ${error.message}`, 'error');
-
-        const status = error.status || 422;
-        if (status === 401 || status === 419) {
-            updateStatus('Authentication error. Please restart login process.', 'error');
-            setTimeout(() => {
-                document.getElementById('mobile-number').value = '';
-                document.getElementById('password').value = '';
-                document.getElementById('otp').value = '';
-                document.getElementById('captcha-token').value = '';
-            }, 5000);
+            renderBookingWidget(sitekey);
         }
     }
-}
 
-    // Booking functions
+    function renderBookingWidget(sitekey) {
+        const container = document.getElementById('booking-captcha-container');
+        try {
+            window.turnstile.render(container, {
+                sitekey: sitekey,
+                callback: function(token) {
+                    document.getElementById('booking-captcha-token').value = token;
+                    updateBookingStatus('Booking captcha verified successfully!', 'success');
+                },
+                'error-callback': function() {
+                    updateBookingStatus('Booking captcha verification failed', 'error');
+                    document.getElementById('booking-captcha-token').value = '';
+                }
+            });
+            updateBookingStatus('Booking captcha widget loaded. Please complete verification.', 'info');
+        } catch (error) {
+            updateBookingStatus('Error loading booking captcha widget: ' + error.message, 'error');
+        }
+    }
+
     async function submitApplicationInfo() {
         const accessToken = document.getElementById('booking-access-token').value.trim();
         const captchaToken = document.getElementById('booking-captcha-token').value.trim();
@@ -1829,17 +1674,12 @@ async function submitOTP() {
 
             if (result.status_code === 200) {
                 updateBookingStatus('Application info submitted successfully!', 'success');
-
-                // Enable Personal Info button
                 const personalBtn = document.getElementById('submit-personal-info');
                 personalBtn.disabled = false;
                 personalBtn.style.background = '#28a745';
-
-                // Disable Application Info button
                 const appBtn = document.getElementById('submit-application-info');
                 appBtn.disabled = true;
                 appBtn.style.background = '#6c757d';
-
             } else {
                 updateBookingStatus(`Application info submission failed: ${result.message || 'Unknown error'}`, 'error');
             }
@@ -1850,7 +1690,6 @@ async function submitOTP() {
 
     async function submitPersonalInfo() {
         const accessToken = document.getElementById('booking-access-token').value.trim();
-
         if (!accessToken) {
             updateBookingStatus('Please complete login first to get access token', 'error');
             return;
@@ -1859,17 +1698,13 @@ async function submitOTP() {
         updateBookingStatus('Submitting personal info with hardcoded data...', 'info');
 
         try {
-            // Get personal info from form fields (editable)
             const fullName = document.getElementById('personal-full-name').value.trim();
             const email = document.getElementById('personal-email').value.trim();
             const phone = document.getElementById('personal-phone').value.trim();
             const webfileId = document.getElementById('webfile-id').value;
-
-            // Get family data based on family count
             const familyCount = parseInt(document.getElementById('family-count').value) || 0;
             const family = {};
 
-            // Build family object based on visible family members
             for (let i = 1; i <= familyCount; i++) {
                 const nameEl = document.getElementById(`family-name-${i}`);
                 const webfileEl = document.getElementById(`family-webfile-${i}`);
@@ -1902,17 +1737,12 @@ async function submitOTP() {
 
             if (result.status_code === 200) {
                 updateBookingStatus(`Personal info submitted successfully with ${familyCount} family members!`, 'success');
-
-                // Enable Overview button
                 const overviewBtn = document.getElementById('submit-overview');
                 overviewBtn.disabled = false;
                 overviewBtn.style.background = '#28a745';
-
-                // Disable Personal Info button
                 const personalBtn = document.getElementById('submit-personal-info');
                 personalBtn.disabled = true;
                 personalBtn.style.background = '#6c757d';
-
             } else {
                 updateBookingStatus(`Personal info submission failed: ${result.message || 'Unknown error'}`, 'error');
             }
@@ -1923,7 +1753,6 @@ async function submitOTP() {
 
     async function submitOverview() {
         const accessToken = document.getElementById('booking-access-token').value.trim();
-
         if (!accessToken) {
             updateBookingStatus('Please complete login first to get access token', 'error');
             return;
@@ -1943,17 +1772,12 @@ async function submitOTP() {
 
             if (result.status_code === 200) {
                 updateBookingStatus('Overview submitted successfully! Booking process completed.', 'success');
-
-                // Disable Overview button
                 const overviewBtn = document.getElementById('submit-overview');
                 overviewBtn.disabled = true;
                 overviewBtn.style.background = '#6c757d';
-
-                // Show completion message
                 setTimeout(() => {
                     updateBookingStatus('🎉 Booking completed! You can now proceed to Payment tab if needed.', 'success');
                 }, 2000);
-
             } else {
                 updateBookingStatus(`Overview submission failed: ${result.message || 'Unknown error'}`, 'error');
             }
@@ -1962,24 +1786,15 @@ async function submitOTP() {
         }
     }
 
-    // Payment functions
-    let paymentData = {
-        slotDates: {},
-        slotTimes: [],
-        paymentUrl: '',
-        selectedPaymentMethod: 'visacard'
-    };
-
+    // === PAYMENT FUNCTIONS ===
     async function sendPaymentOTP(resend = 0) {
         const accessToken = document.getElementById('payment-access-token').value.trim();
-
         if (!accessToken) {
             updatePaymentStatus('Please complete login first to get access token', 'error');
             return;
         }
 
         updatePaymentStatus('Sending payment OTP...', 'info');
-
         const sendBtn = document.getElementById('send-otp-btn');
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending...';
@@ -1992,167 +1807,137 @@ async function submitOTP() {
                     'language': 'en',
                     'Authorization': `Bearer ${accessToken}`
                 },
-                body: {
-                    resend: resend
-                }
+                body: { resend: resend }
             });
 
             if (result.status_code === 200) {
                 updatePaymentStatus('OTP sent successfully! Please check your phone.', 'success');
-
-                // Enable verify button
                 const verifyBtn = document.getElementById('verify-otp-btn');
                 verifyBtn.disabled = false;
                 verifyBtn.style.background = '#28a745';
-
-                // Start countdown timer
                 startOTPCountdown(30);
-
             } else {
                 updatePaymentStatus(`Failed to send OTP: ${result.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             updatePaymentStatus(`Network error: ${error.message}`, 'error');
-
-            if (error.status === 401 || error.status === 419) {
-                setTimeout(() => {
-                    updatePaymentStatus('Session expired. Please login again.', 'error');
-                }, 3000);
-            }
         } finally {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';
         }
     }
 
-async function verifyPaymentOTP() {
-    const accessToken = document.getElementById('payment-access-token').value.trim();
-    const otp = document.getElementById('payment-otp').value.trim();
+    async function verifyPaymentOTP() {
+        const accessToken = document.getElementById('payment-access-token').value.trim();
+        const otp = document.getElementById('payment-otp').value.trim();
 
-    if (!accessToken) {
-        updatePaymentStatus('Please complete login first to get access token', 'error');
-        return;
-    }
+        if (!accessToken) {
+            updatePaymentStatus('Please complete login first to get access token', 'error');
+            return;
+        }
 
-    if (otp.length < 6) {
-        updatePaymentStatus('Please enter 6 digit OTP', 'error');
-        return;
-    }
+        if (otp.length < 6) {
+            updatePaymentStatus('Please enter 6 digit OTP', 'error');
+            return;
+        }
 
-    updatePaymentStatus('Verifying OTP...', 'info');
+        updatePaymentStatus('Verifying OTP...', 'info');
+        const verifyBtn = document.getElementById('verify-otp-btn');
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
 
-    const verifyBtn = document.getElementById('verify-otp-btn');
-    verifyBtn.disabled = true;
-    verifyBtn.textContent = 'Verifying...';
+        try {
+            const result = await customFetch('/api/v2/payment/pay-otp-verify', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'language': 'en',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: { otp: otp }
+            });
 
-    try {
-        const result = await customFetch('/api/v2/payment/pay-otp-verify', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'language': 'en',
-                'Authorization': `Bearer ${accessToken}`
-            },
-            body: {
-                otp: otp
-            }
-        });
+            if (result.status_code === 200) {
+                updatePaymentStatus('OTP verified successfully! Loading appointment dates...', 'success');
 
-        if (result.status_code === 200) {
-            updatePaymentStatus('OTP verified successfully! Loading appointment dates...', 'success');
-
-            // Store slot dates and try to populate
-            let datePopulated = false;
-            if (result.data && result.data.slot_dates) {
-                paymentData.slotDates = result.data.slot_dates;
-                try {
-                    populateAppointmentDates(result.data.slot_dates);
-                    datePopulated = true;
-                } catch (error) {
-                    console.warn('Failed to populate dates:', error);
-                    updatePaymentStatus('⚠️ Date population failed, using default date...', 'warning');
+                let datePopulated = false;
+                if (result.data && result.data.slot_dates) {
+                    paymentData.slotDates = result.data.slot_dates;
+                    try {
+                        populateAppointmentDates(result.data.slot_dates);
+                        datePopulated = true;
+                    } catch (error) {
+                        console.warn('Failed to populate dates:', error);
+                        updatePaymentStatus('⚠️ Date population failed, using default date...', 'warning');
+                    }
                 }
+
+                if (!datePopulated) {
+                    setTimeout(() => {
+                        setDefaultDateTime();
+                        updatePaymentStatus('Using default date and time as fallback. You can change if needed.', 'info');
+                    }, 1000);
+                }
+
+                document.getElementById('pay-slot-time-btn').disabled = false;
+                document.getElementById('pay-slot-time-btn').style.background = '#fd7e14';
+                document.getElementById('default-slot-btn').disabled = false;
+                document.getElementById('default-slot-btn').style.background = '#6c757d';
+                document.getElementById('default-date-btn').disabled = false;
+                document.getElementById('default-date-btn').style.background = '#17a2b8';
+            } else {
+                updatePaymentStatus(`OTP verification failed: ${result.message || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            updatePaymentStatus(`Network error: ${error.message}`, 'error');
+        } finally {
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify';
+        }
+    }
+
+    function populateAppointmentDates(slotDates) {
+        try {
+            const dateSelect = document.getElementById('appointment-date');
+            dateSelect.innerHTML = '<option value="">Select appointment date</option>';
+            let datesAdded = 0;
+
+            if (Array.isArray(slotDates)) {
+                slotDates.forEach((date) => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = date;
+                    dateSelect.appendChild(option);
+                    datesAdded++;
+                });
+            } else if (typeof slotDates === 'object') {
+                Object.entries(slotDates).forEach(([key, date]) => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = date;
+                    dateSelect.appendChild(option);
+                    datesAdded++;
+                });
             }
 
-            // If date population failed or no dates received, use default
-            if (!datePopulated) {
-                setTimeout(() => {
-                    setDefaultDateTime();
-                    updatePaymentStatus('Using default date and time as fallback. You can change if needed.', 'info');
-                }, 1000);
+            if (datesAdded > 0) {
+                updatePaymentStatus(`${datesAdded} appointment dates loaded successfully!`, 'success');
+                return true;
+            } else {
+                throw new Error('No valid dates found in server response');
             }
-
-            // Enable slot management buttons
-            document.getElementById('pay-slot-time-btn').disabled = false;
-            document.getElementById('pay-slot-time-btn').style.background = '#fd7e14';
-
-            document.getElementById('default-slot-btn').disabled = false;
-            document.getElementById('default-slot-btn').style.background = '#6c757d';
-
-        } else {
-            updatePaymentStatus(`OTP verification failed: ${result.message || 'Unknown error'}`, 'error');
+        } catch (error) {
+            console.error('Date population error:', error);
+            updatePaymentStatus(`Failed to populate dates: ${error.message}`, 'error');
+            return false;
         }
-    } catch (error) {
-        updatePaymentStatus(`Network error: ${error.message}`, 'error');
-
-        if (error.status === 401 || error.status === 419) {
-            setTimeout(() => {
-                updatePaymentStatus('Session expired. Please login again.', 'error');
-            }, 3000);
-        }
-    } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = 'Verify';
     }
-}
-
-function populateAppointmentDates(slotDates) {
-    try {
-        const dateSelect = document.getElementById('appointment-date');
-        dateSelect.innerHTML = '<option value="">Select appointment date</option>';
-
-        let datesAdded = 0;
-
-        // Handle different possible formats of slot_dates
-        if (Array.isArray(slotDates)) {
-            // If it's an array of dates
-            slotDates.forEach((date, index) => {
-                const option = document.createElement('option');
-                option.value = date;
-                option.textContent = date;
-                dateSelect.appendChild(option);
-                datesAdded++;
-            });
-        } else if (typeof slotDates === 'object') {
-            // If it's an object with key-value pairs
-            Object.entries(slotDates).forEach(([key, date]) => {
-                const option = document.createElement('option');
-                option.value = date;
-                option.textContent = date;
-                dateSelect.appendChild(option);
-                datesAdded++;
-            });
-        }
-
-        if (datesAdded > 0) {
-            updatePaymentStatus(`${datesAdded} appointment dates loaded successfully!`, 'success');
-            return true;
-        } else {
-            throw new Error('No valid dates found in server response');
-        }
-    } catch (error) {
-        console.error('Date population error:', error);
-        updatePaymentStatus(`Failed to populate dates: ${error.message}`, 'error');
-        return false;
-    }
-}
 
     async function handleAppointmentDateChange(event) {
         const selectedDate = event.target.value;
         if (!selectedDate) return;
 
         const accessToken = document.getElementById('payment-access-token').value.trim();
-
         updatePaymentStatus('Loading appointment times...', 'info');
 
         try {
@@ -2163,9 +1948,7 @@ function populateAppointmentDates(slotDates) {
                     'language': 'en',
                     'Authorization': `Bearer ${accessToken}`
                 },
-                body: {
-                    appointment_date: selectedDate
-                }
+                body: { appointment_date: selectedDate }
             });
 
             if (result.status_code === 200) {
@@ -2212,7 +1995,6 @@ function populateAppointmentDates(slotDates) {
         }
 
         updatePaymentStatus('Manually fetching slot times...', 'info');
-
         const button = document.getElementById('pay-slot-time-btn');
         button.disabled = true;
         button.textContent = 'Loading...';
@@ -2225,9 +2007,7 @@ function populateAppointmentDates(slotDates) {
                     'language': 'en',
                     'Authorization': `Bearer ${accessToken}`
                 },
-                body: {
-                    appointment_date: selectedDate
-                }
+                body: { appointment_date: selectedDate }
             });
 
             if (result.status_code === 200) {
@@ -2253,7 +2033,6 @@ function populateAppointmentDates(slotDates) {
         const timeSelect = document.getElementById('appointment-time');
         const defaultTime = '09:00 - 09:59';
 
-        // Add default option if not exists
         let defaultOption = Array.from(timeSelect.options).find(option => option.value === defaultTime);
         if (!defaultOption) {
             defaultOption = document.createElement('option');
@@ -2264,23 +2043,59 @@ function populateAppointmentDates(slotDates) {
 
         timeSelect.value = defaultTime;
         timeSelect.disabled = false;
-
         updatePaymentStatus(`Default slot time set: ${defaultTime}`, 'info');
-
-        // Enable pay now button
         checkPaymentReadiness();
+    }
+
+    function setDefaultDate() {
+        const dateSelect = document.getElementById('appointment-date');
+        const currentDate = new Date();
+        const defaultDate = new Date(currentDate);
+        defaultDate.setDate(currentDate.getDate() + 7);
+        const defaultDateString = defaultDate.toISOString().split('T')[0];
+
+        let defaultOption = Array.from(dateSelect.options).find(option => option.value === defaultDateString);
+        if (!defaultOption) {
+            defaultOption = document.createElement('option');
+            defaultOption.value = defaultDateString;
+            defaultOption.textContent = defaultDateString;
+            dateSelect.appendChild(defaultOption);
+        }
+
+        dateSelect.value = defaultDateString;
+        updatePaymentStatus(`Default appointment date set: ${defaultDateString}`, 'info');
+        handleAppointmentDateChange({ target: { value: defaultDateString } });
+        return defaultDateString;
+    }
+
+    function setDefaultDateTime() {
+        const timeSelect = document.getElementById('appointment-time');
+        const defaultDate = setDefaultDate();
+        const defaultTime = '09:00 - 09:59';
+        
+        let defaultTimeOption = Array.from(timeSelect.options).find(option => option.value === defaultTime);
+        if (!defaultTimeOption) {
+            defaultTimeOption = document.createElement('option');
+            defaultTimeOption.value = defaultTime;
+            defaultTimeOption.textContent = defaultTime;
+            timeSelect.appendChild(defaultTimeOption);
+        }
+
+        timeSelect.value = defaultTime;
+        timeSelect.disabled = false;
+        updatePaymentStatus(`Default date & time set: ${defaultDate} at ${defaultTime}`, 'success');
+        checkPaymentReadiness();
+        return { date: defaultDate, time: defaultTime };
     }
 
     function loadPaymentCaptcha() {
         const sitekey = document.getElementById('payment-sitekey').value.trim();
-
         if (!sitekey) {
             updatePaymentStatus('Please enter the Cloudflare sitekey', 'error');
             return;
         }
 
         updatePaymentStatus('Loading payment captcha widget...', 'info');
-
         const container = document.getElementById('payment-captcha-container');
         container.innerHTML = '';
 
@@ -2296,7 +2111,6 @@ function populateAppointmentDates(slotDates) {
 
     function renderPaymentWidget(sitekey) {
         const container = document.getElementById('payment-captcha-container');
-
         try {
             window.turnstile.render(container, {
                 sitekey: sitekey,
@@ -2341,7 +2155,6 @@ function populateAppointmentDates(slotDates) {
         const captchaFieldName = document.getElementById('payment-captcha-field-name').value;
         const apiEndpoint = document.getElementById('payment-api-endpoint').value;
 
-        // Get selected payment method
         const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
         const paymentMethod = {
             name: selectedPaymentMethod === 'visacard' ? 'VISA' : 'MASTER',
@@ -2357,13 +2170,11 @@ function populateAppointmentDates(slotDates) {
         }
 
         updatePaymentStatus('Submitting payment request...', 'info');
-
         const payNowBtn = document.getElementById('pay-now-btn');
         payNowBtn.disabled = true;
         payNowBtn.textContent = 'Processing...';
 
         try {
-            // Payload structure matches the site script exactly
             const payload = {
                 appointment_date: appointmentDate,
                 appointment_time: appointmentTime,
@@ -2371,7 +2182,7 @@ function populateAppointmentDates(slotDates) {
                 [captchaFieldName]: captchaToken
             };
 
-            console.log('Payment payload:', payload); // Debug log
+            console.log('Payment payload:', payload);
 
             const result = await customFetch(apiEndpoint, {
                 method: 'POST',
@@ -2385,16 +2196,12 @@ function populateAppointmentDates(slotDates) {
 
             if (result.status_code === 200) {
                 updatePaymentStatus('Payment request submitted successfully! Payment URL received.', 'success');
-
-                // Store payment URL
                 paymentData.paymentUrl = result.data.url;
 
-                // Enable payment button
                 const paymentBtn = document.getElementById('payment-btn');
                 paymentBtn.disabled = false;
                 paymentBtn.style.background = '#28a745';
 
-                // Show success message with options
                 setTimeout(() => {
                     updatePaymentStatus(`
                         🎉 Payment URL received successfully!<br>
@@ -2405,26 +2212,15 @@ function populateAppointmentDates(slotDates) {
                     `, 'success');
                 }, 1000);
 
-                // Optional: Ask user if they want to redirect immediately
                 const autoRedirect = confirm('Payment URL received! Do you want to redirect to payment gateway now?\n\nClick OK to redirect immediately, or Cancel to use the Payment button.');
-
                 if (autoRedirect) {
-                    // Clear localStorage and redirect like original site
-                    // localStorage.clear(); // Uncomment if you want to clear all localStorage
                     window.location.href = result.data.url;
                 }
-
             } else {
                 updatePaymentStatus(`Payment submission failed: ${result.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             updatePaymentStatus(`Network error: ${error.message}`, 'error');
-
-            if (error.status === 401 || error.status === 419) {
-                setTimeout(() => {
-                    updatePaymentStatus('Session expired. Please login again.', 'error');
-                }, 3000);
-            }
         } finally {
             payNowBtn.disabled = false;
             payNowBtn.textContent = 'Pay Now';
