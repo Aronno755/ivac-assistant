@@ -1496,7 +1496,7 @@
         updateStatus('Submitting password...', 'info');
 
         try {
-            const result = await customFetch('/api/v2/login', {
+            const result = await customFetch('/api/v2/jktwdasf-345432-afawerk', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -2252,5 +2252,6 @@
             }
         }, 1000);
     }
+
 
 })();
