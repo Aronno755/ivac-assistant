@@ -1,5 +1,5 @@
 /**
- * IVAC Login Assistant v2.3 - Bookmarklet Version
+ * IVAC Login Assistant v2.4 - Bookmarklet Version
  * Complete IVAC automation with hardcoded personal info
  * Compatible with bookmarklet loader method
  * 
@@ -2255,3 +2255,4 @@
 
 
 })();
+
