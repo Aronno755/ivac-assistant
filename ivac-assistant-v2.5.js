@@ -1,5 +1,5 @@
 /**
- * IVAC Login Assistant v2.4 - Bookmarklet Version
+ * IVAC Login Assistant v2.5 - Bookmarklet Version
  * Complete IVAC automation with hardcoded personal info
  * Compatible with bookmarklet loader method
  * 
@@ -70,7 +70,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v2.4 initializing...');
+        console.log('IVAC Assistant v2.5 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -113,7 +113,7 @@
                 justify-content: space-between;
                 align-items: center;
             ">
-                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.4</h3>
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.5</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
                         background: rgba(255,255,255,0.2);
@@ -2255,5 +2255,6 @@
 
 
 })();
+
 
 
