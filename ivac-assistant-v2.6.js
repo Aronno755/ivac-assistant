@@ -1,5 +1,5 @@
 /**
- * IVAC Login Assistant v2.5 - Bookmarklet Version
+ * IVAC Login Assistant v2.6 - Bookmarklet Version
  * Complete IVAC automation with hardcoded personal info
  * Compatible with bookmarklet loader method
  * 
@@ -18,26 +18,26 @@
 
     // Hardcoded personal info - MODIFY THESE VALUES AS NEEDED
     const PERSONAL_INFO = {
-        full_name: 'NAJNEN SULTANA',
-        email_name: 'najnensultana87@gmail.com',
-        phone: '01889844184',
-        webfile_id: 'BGDCV0F0A525',
+        full_name: 'SANJOY KUMAR NATH',
+        email_name: 'sanjoykumarnath203@gmail.com',
+        phone: '01632028023',
+        webfile_id: 'BGDCV1108225',
 
         family: {
             1: {
-                name: 'MD PERVES',
-                webfile_no: 'BGDCV0F0A925',
-                again_webfile_no: 'BGDCV0F0A925'
+                name: 'MD MEZBAH UDDIN SHAH',
+                webfile_no: 'BGDCV10CA125',
+                again_webfile_no: 'BGDCV10CA125'
             },
             2: {
-                name: 'CHANDA RANI DAS',
-                webfile_no: 'BGDCV0ECB825',
-                again_webfile_no: 'BGDCV0ECB825'
+                name: 'MOBASHWIR BIN SHAH ARAF',
+                webfile_no: 'BGDCV10CA625',
+                again_webfile_no: 'BGDCV10CA625'
             },
             3: {
-                name: 'RAJESH KUMAR DAS',
-                webfile_no: 'BGDCV0ECC125',
-                again_webfile_no: 'BGDCV0ECC125'
+                name: 'MD MOHIDUL ALAM ABIR',
+                webfile_no: 'BGDCV10CAA25',
+                again_webfile_no: 'BGDCV10CAA25'
             },
             4: {
                 name: 'SUNITA RANI DAS',
@@ -70,7 +70,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v2.5 initializing...');
+        console.log('IVAC Assistant v2.6 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -113,7 +113,7 @@
                 justify-content: space-between;
                 align-items: center;
             ">
-                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.5</h3>
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.6</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
                         background: rgba(255,255,255,0.2);
@@ -516,7 +516,7 @@
                         box-sizing: border-box;
                         resize: vertical;
                         height: 60px;
-                    ">IVF Pregnancy Treatment</textarea>
+                    ">DEGENERATIVE DISK TREATMENT</textarea>
                 </div>
 
                 <div style="margin-bottom: 10px;">
@@ -2255,6 +2255,7 @@
 
 
 })();
+
 
 
 
