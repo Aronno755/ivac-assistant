@@ -1,5 +1,5 @@
 /**
- * IVAC Login Assistant v2.7 - Bookmarklet Version
+ * IVAC Login Assistant v2.8 - Bookmarklet Version
  * Complete IVAC automation with hardcoded personal info
  * Compatible with bookmarklet loader method
  * 
@@ -18,10 +18,10 @@
 
     // Hardcoded personal info - MODIFY THESE VALUES AS NEEDED
     const PERSONAL_INFO = {
-        full_name: 'SANJOY KUMAR NATH',
-        email_name: 'sanjoykumarnath203@gmail.com',
-        phone: '01632028023',
-        webfile_id: 'BGDCV1108225',
+        full_name: 'FARHANA ALAM AKHI',
+        email_name: 'akhifarhana74@gmail.com',
+        phone: '01711114843',
+        webfile_id: 'BGDCV10C9E25',
 
         family: {
             1: {
@@ -70,7 +70,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v2.7 initializing...');
+        console.log('IVAC Assistant v2.8 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -113,7 +113,7 @@
                 justify-content: space-between;
                 align-items: center;
             ">
-                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.7</h3>
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Complete Assistant v2.8</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
                         background: rgba(255,255,255,0.2);
@@ -481,7 +481,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <div>
                         <label style="display: block; font-size: 11px; color: #666; margin-bottom: 3px;">Family Count:</label>
-                        <input type="text" id="family-count" value="1" class="editable-field" style="
+                        <input type="text" id="family-count" value="3" class="editable-field" style="
                             width: 100%;
                             padding: 6px;
                             border: 1px solid #ddd;
@@ -516,7 +516,7 @@
                         box-sizing: border-box;
                         resize: vertical;
                         height: 60px;
-                    ">DEGENERATIVE DISK TREATMENT</textarea>
+                    ">CARDIOVASCULAR TREATMENT</textarea>
                 </div>
 
                 <div style="margin-bottom: 10px;">
@@ -2255,6 +2255,7 @@
 
 
 })();
+
 
 
 
