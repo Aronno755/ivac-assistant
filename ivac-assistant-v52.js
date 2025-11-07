@@ -1,5 +1,5 @@
 /**
- * IVAC Complete Assistant v5.5 - Enhanced Autofill Edition
+ * IVAC Complete Assistant v5.2 - Enhanced Autofill Edition
  * Complete IVAC automation with smart autofill for disabled fields
  * Compatible with bookmarklet loader method
  * 
@@ -297,7 +297,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v5.5 initializing...');
+        console.log('IVAC Assistant v5.2 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -340,7 +340,7 @@
                 justify-content: space-between;
                 align-items: center;
             ">
-                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Assistant v5.5 🚀</h3>
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Assistant v5.2 🚀</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
                         background: rgba(255,255,255,0.2);
@@ -2595,7 +2595,3 @@ async function submitOTP() {
     }
 
 })();
-
-
-
-
