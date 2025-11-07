@@ -1,5 +1,5 @@
 /**
- * IVAC Complete Assistant v5.0 - Enhanced Autofill Edition
+ * IVAC Complete Assistant v6.0 - Enhanced Autofill Edition
  * Complete IVAC automation with smart autofill for disabled fields
  * Compatible with bookmarklet loader method
  * 
@@ -297,7 +297,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v5.0 initializing...');
+        console.log('IVAC Assistant v6.0 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -340,7 +340,7 @@
                 justify-content: space-between;
                 align-items: center;
             ">
-                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Assistant v5.0 🚀</h3>
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">IVAC Assistant v6.0 🚀</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
                         background: rgba(255,255,255,0.2);
@@ -1628,10 +1628,15 @@
 
     // === API FUNCTIONS ===
     async function customFetch(url, options) {
+
+            // Get CSRF token from meta tag or cookie
+        const csrfToken = getCsrfToken();
+        
         const defaultHeaders = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
+            'X-CSRF-TOKEN': csrfToken
         };
 
         const fetchOptions = {
@@ -1640,7 +1645,7 @@
                 ...defaultHeaders,
                 ...options.headers
             },
-            credentials: 'same-origin'
+            credentials: 'include'
         };
 
         if (options.body) {
@@ -1657,6 +1662,26 @@
         };
     }
 
+     // === HELPER FUNCTIONS ===
+ function getCsrfToken() {
+    // Try to get from meta tag
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    
+    // Try to get from cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'XSRF-TOKEN') {
+            return decodeURIComponent(value);
+        }
+    }
+    // If not found, try to fetch it
+    return '';
+}
+    
     // === LOGIN FUNCTIONS ===
     function loadCloudflareWidget() {
         const sitekey = document.getElementById('sitekey').value.trim();
@@ -1797,58 +1822,63 @@
         }
     }
 
-    async function submitOTP() {
-        const otp = document.getElementById('otp').value.trim();
-        if (!otp) {
-            updateStatus('Please enter OTP', 'error');
-            return;
-        }
-
-        let mobileNumber = localStorage.getItem('user_phone') || document.getElementById('mobile-number').value.trim();
-        let password = localStorage.getItem('user_pwd') || document.getElementById('password').value.trim();
-
-        if (!mobileNumber || !password) {
-            updateStatus('Missing mobile number or password. Please fill them in the form above.', 'error');
-            return;
-        }
-
-        updateStatus('Submitting OTP...', 'info');
-
-        try {
-            const result = await customFetch('/api/v2/login-otp', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'language': 'en'
-                },
-                body: {
-                    mobile_no: mobileNumber,
-                    password: password,
-                    otp: otp
-                }
-            });
-
-            if (result.status_code === 200) {
-                const data = result.data;
-                localStorage.setItem('access_token', data.access_token);
-                localStorage.setItem('auth_name', data.name);
-                localStorage.setItem('auth_email', data.email);
-                localStorage.setItem('auth_phone', data.mobile_no);
-                localStorage.setItem('auth_photo', data.profile_image);
-                localStorage.removeItem('user_pwd');
-
-                document.getElementById('access-token-display').value = data.access_token;
-                document.getElementById('booking-access-token').value = data.access_token;
-                document.getElementById('payment-access-token').value = data.access_token;
-
-                updateStatus('✅ Login completed successfully!', 'success');
-            } else {
-                updateStatus(`OTP submission failed: ${result.message || 'Unknown error'}`, 'error');
-            }
-        } catch (error) {
-            updateStatus(`Network error: ${error.message}`, 'error');
-        }
+async function submitOTP() {
+    const otp = document.getElementById('otp').value.trim();
+    if (!otp) {
+        updateStatus('Please enter OTP', 'error');
+        return;
     }
+
+    let mobileNumber = localStorage.getItem('user_phone') || document.getElementById('mobile-number').value.trim();
+    let password = localStorage.getItem('user_pwd') || document.getElementById('password').value.trim();
+
+    if (!mobileNumber || !password) {
+        updateStatus('Missing mobile number or password. Please fill them in the form above.', 'error');
+        return;
+    }
+
+    updateStatus('Submitting OTP...', 'info');
+
+    try {
+        const result = await customFetch('/api/v2/login-otp', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'language': 'en'
+            },
+            body: {
+                mobile_no: mobileNumber,
+                password: password,
+                otp: otp
+            }
+        });
+
+        if (result.status_code === 200) {
+            const data = result.data;
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('auth_name', data.name);
+            localStorage.setItem('auth_email', data.email);
+            localStorage.setItem('auth_phone', data.mobile_no);
+            localStorage.setItem('auth_photo', data.profile_image);
+            localStorage.removeItem('user_pwd');
+
+            document.getElementById('access-token-display').value = data.access_token;
+            document.getElementById('booking-access-token').value = data.access_token;
+            document.getElementById('payment-access-token').value = data.access_token;
+
+            updateStatus('✅ Login completed successfully! Redirecting...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = '/application';
+            }, 1500);
+            
+        } else {
+            updateStatus(`OTP submission failed: ${result.message || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        updateStatus(`Network error: ${error.message}`, 'error');
+    }
+}
 
     // === BOOKING FUNCTIONS ===
     function loadBookingCaptcha() {
@@ -1941,13 +1971,63 @@
                 const appBtn = document.getElementById('submit-application-info');
                 appBtn.disabled = true;
                 appBtn.style.background = '#6c757d';
-            } else {
-                updateBookingStatus(`Application info submission failed: ${result.message || 'Unknown error'}`, 'error');
-            }
-        } catch (error) {
-            updateBookingStatus(`Network error: ${error.message}`, 'error');
+            } else if (result.status === 419 || result.status_code === 419) {
+        // Don't reload, just show error and suggest manual action
+        updateBookingStatus(
+            '⚠️ Session expired or CSRF token invalid.<br>' +
+            'Please try the following:<br>' +
+            '1. Click the "Load" button next to Access Token<br>' +
+            '2. Re-verify the captcha<br>' +
+            '3. Try submitting again<br>' +
+            'If the issue persists, you may need to manually refresh the page.',
+            'error'
+        );
+        
+        // Optionally try to refresh CSRF token automatically
+        const newToken = await refreshCsrfToken();
+        if (newToken) {
+            updateBookingStatus(
+                '✓ CSRF token refreshed. Please re-verify the captcha and try submitting again.',
+                'warning'
+            );
         }
+    } else if (result.status === 429 || result.status_code === 429) {
+        // Don't reload, just show error with wait time
+        updateBookingStatus(
+            '❌ Rate limit exceeded. Too many requests detected.<br>' +
+            '<strong>Please wait 5-10 minutes before trying again.</strong><br>' +
+            'Your IP may be temporarily blocked if you continue making rapid requests.<br>' +
+            'Tips:<br>' +
+            '• Wait at least 2-3 seconds between each action<br>' +
+            '• Do not refresh or retry immediately<br>' +
+            '• Make sure you have a stable internet connection',
+            'error'
+        );
+    } else {
+        updateBookingStatus(`Application info submission failed: ${result.message || 'Unknown error'}`, 'error');
     }
+} catch (error) {
+    if (error.status === 419) {
+        updateBookingStatus(
+            '⚠️ Session expired. Please:<br>' +
+            '1. Click "Load" button to refresh access token<br>' +
+            '2. Re-verify the captcha<br>' +
+            '3. Try submitting again',
+            'error'
+        );
+        
+        // Try to refresh CSRF token
+        await refreshCsrfToken();
+    } else if (error.status === 429) {
+        updateBookingStatus(
+            '❌ Too many requests. Your IP may be temporarily blocked.<br>' +
+            '<strong>Wait 5-10 minutes and avoid making rapid requests.</strong>',
+            'error'
+        );
+    } else {
+        updateBookingStatus(`Network error: ${error.message}`, 'error');
+    }
+}
 
     async function submitPersonalInfo() {
         const accessToken = document.getElementById('booking-access-token').value.trim();
@@ -2515,5 +2595,6 @@
     }
 
 })();
+
 
 
