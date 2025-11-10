@@ -110,7 +110,7 @@
     }
 
     function initScript() {
-        console.log('IVAC Assistant v6.0 initializing...');
+        console.log('Lotus Appt 1.0 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -156,7 +156,7 @@
             ">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 24px;">🚀</span>
-                    <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">IVAC Assistant v6.0</h3>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">Lotus Appt 1.0</h3>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
