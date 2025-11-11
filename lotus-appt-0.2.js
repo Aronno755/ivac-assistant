@@ -2153,16 +2153,6 @@
             updateBookingStatus(`❌ Failed: ${error.message}`, 'error');
         }
     }
-                updateBookingStatus('✅ Overview submitted successfully!', 'success');
-            } else if (result.status_code === 422 || result.status === 422) {
-                updateBookingStatus(`⚠️ Failed (422): ${result.message || 'No slots available'}`, 'warning');
-            } else {
-                updateBookingStatus(`❌ Failed: ${result.message || 'Unknown error'} (Status: ${result.status || result.status_code})`, 'error');
-            }
-        } catch (error) {
-            updateBookingStatus(`❌ Failed: ${error.message}`, 'error');
-        }
-    }
 
     // ==========================================
     // PAYMENT TAB FUNCTIONS
