@@ -1,5 +1,5 @@
 /**
- * Lotus Appt 2.0 - Enhanced Automation Edition
+ * Lotus Appt 1.0 - Enhanced Automation Edition with OCR
  * Advanced automation with smart retry logic and streamlined UI
  * Compatible with bookmarklet loader method
  * 
@@ -76,7 +76,6 @@
         payment: {
             endpoint: '/api/v2/payment/h7j3wt-now-y0k3d6',
             captchaFieldName: 'k5t0g8_token_y4v9f6',
-            generateCaptcha: '/api/v2/captcha/generate-pay',
             verifyCaptcha: '/api/v2/captcha/verify-pay'
         }
     };
@@ -104,6 +103,12 @@
         }
     };
 
+    // OCR control
+    let ocrControl = {
+        loaded: false,
+        processing: false
+    };
+
     // ==========================================
     // INITIALIZATION
     // ==========================================
@@ -115,7 +120,7 @@
     }
 
     function initScript() {
-        console.log('Lotus Appt 2.0 initializing...');
+        console.log('Lotus Appt 1.0 initializing...');
         setTimeout(createMainPanel, 1000);
     }
 
@@ -161,7 +166,7 @@
             ">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 24px;">🚀</span>
-                    <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">Lotus Appt 2.0 - Captcha Updated</h3>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">Lotus Appt 1.0</h3>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button id="minimize-panel" style="
@@ -284,7 +289,7 @@
         setupEventListeners();
         loadPersistedData();
 
-        console.log('IVAC Assistant v6.0 loaded successfully');
+        console.log('IVAC Assistant loaded successfully');
     }
 
     function createLoginTabContent() {
@@ -413,9 +418,10 @@
                 " maxlength="6">
             </div>
 
-            <!-- Auto Login and Stop Buttons Row -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <!-- Auto Login Buttons Container -->
+            <div id="login-button-container" style="margin-bottom: 15px;">
                 <button id="start-auto-login" style="
+                    width: 100%;
                     padding: 14px 20px;
                     background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
                     color: white;
@@ -430,6 +436,7 @@
                     letter-spacing: 1px;
                 ">🤖 Start Auto Login</button>
                 <button id="stop-auto-login" style="
+                    width: 100%;
                     padding: 14px 20px;
                     background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
                     color: white;
@@ -442,7 +449,7 @@
                     box-shadow: 0 4px 15px rgba(235, 51, 73, 0.4);
                     text-transform: uppercase;
                     display: none;
-                ">⛔ Stop</button>
+                ">⛔ Stop Auto Login</button>
             </div>
 
             <!-- Manual Controls Row -->
@@ -772,20 +779,33 @@
                 </div>
             </div>
 
-            <!-- NEW Image Captcha Section -->
+            <!-- Image Captcha Section -->
             <div id="payment-captcha-section" style="display: none; margin-bottom: 15px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
                     <label style="font-weight: bold; color: #333; font-size: 13px;">🔐 Captcha Verification</label>
-                    <button id="refresh-payment-captcha" style="
-                        padding: 6px 12px;
-                        background: #17a2b8;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-size: 11px;
-                        font-weight: bold;
-                    ">🔄 Refresh</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="auto-read-captcha" style="
+                            padding: 6px 12px;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-size: 11px;
+                            font-weight: bold;
+                            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.4);
+                        ">🤖 Auto Read</button>
+                        <button id="refresh-payment-captcha" style="
+                            padding: 6px 12px;
+                            background: #17a2b8;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-size: 11px;
+                            font-weight: bold;
+                        ">🔄 Refresh</button>
+                    </div>
                 </div>
                 
                 <!-- Captcha Image Display -->
@@ -1050,8 +1070,9 @@
         // Appointment
         document.getElementById('appointment-date').addEventListener('change', handleAppointmentDateChange);
 
-        // NEW: Captcha handlers
-        document.getElementById('refresh-payment-captcha').addEventListener('click', generatePaymentCaptcha);
+        // Captcha handlers
+        document.getElementById('refresh-payment-captcha').addEventListener('click', refreshPaymentCaptcha);
+        document.getElementById('auto-read-captcha').addEventListener('click', attemptCaptchaOCR);
         document.getElementById('verify-payment-captcha-btn').addEventListener('click', verifyPaymentCaptcha);
         document.getElementById('payment-captcha-input').addEventListener('input', (e) => {
             const verifyBtn = document.getElementById('verify-payment-captcha-btn');
@@ -1359,7 +1380,7 @@
                     return result;
                 }
 
-                // UPDATED: Stop immediately on 401 or 403
+                // Stop immediately on 401 or 403
                 if (result.status === 401 || result.status_code === 401 || 
                     result.status === 403 || result.status_code === 403) {
                     throw new Error(`${result.status || result.status_code} - Authentication/Authorization failed. Please login again.`);
@@ -1367,7 +1388,7 @@
 
                 if (result.status === 429 || result.status_code === 429) {
                     retryCount++;
-                    // UPDATED: Different wait times for booking vs login
+                    // Different wait times for booking vs login
                     const waitTime = context === 'booking' ? 60 : (retryCount === 1 ? 30 : 60);
                     statusCallback(`Rate limit hit (429). Waiting ${waitTime} seconds... (Attempt ${retryCount}/${maxRetries})`, 'warning');
                     await sleep(waitTime * 1000);
@@ -1468,6 +1489,7 @@
         const startBtn = document.getElementById('start-auto-login');
         const stopBtn = document.getElementById('stop-auto-login');
         
+        // Toggle button visibility
         startBtn.style.display = 'none';
         stopBtn.style.display = 'block';
 
@@ -2089,118 +2111,6 @@
     // PAYMENT TAB FUNCTIONS
     // ==========================================
 
-// NEW: Generate payment captcha (image-based)
-async function generatePaymentCaptcha() {
-    const accessToken = document.getElementById('payment-access-token').value.trim();
-    if (!accessToken) {
-        updatePaymentStatus('⚠️ Please complete login first', 'warning');
-        return;
-    }
-
-    try {
-        updatePaymentStatus('🔄 Loading captcha...', 'info');
-        
-        const result = await customFetch(API_ENDPOINTS.payment.generateCaptcha, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'language': 'en',
-                'Authorization': `Bearer ${accessToken}`
-            }
-        });
-
-        // IMPORTANT: Check for result.status === "success" not status_code
-        if (result.status === 'success' && result.data) {
-            paymentData.captchaImage = result.data.captcha_image;
-            paymentData.captchaId = result.data.captcha_id;
-            paymentData.captchaVerified = false;
-
-            // Display the captcha image
-            const captchaImg = document.getElementById('payment-captcha-image');
-            const placeholder = document.getElementById('payment-captcha-placeholder');
-            
-            if (captchaImg && placeholder) {
-                captchaImg.src = result.data.captcha_image;
-                captchaImg.style.display = 'block';
-                placeholder.style.display = 'none';
-            }
-
-            // Clear input and error messages
-            document.getElementById('payment-captcha-input').value = '';
-            document.getElementById('payment-captcha-error').style.display = 'none';
-            document.getElementById('payment-captcha-success').style.display = 'none';
-
-            updatePaymentStatus('✅ Captcha loaded. Please enter the text.', 'info');
-        } else {
-            updatePaymentStatus(`❌ Failed to load captcha: ${result.message || 'Unknown error'}`, 'error');
-        }
-    } catch (error) {
-        updatePaymentStatus(`❌ Error loading captcha: ${error.message}`, 'error');
-    }
-}
-
-    // NEW: Verify payment captcha
-    async function verifyPaymentCaptcha() {
-        const accessToken = document.getElementById('payment-access-token').value.trim();
-        const captchaInput = document.getElementById('payment-captcha-input').value.trim();
-        const errorDiv = document.getElementById('payment-captcha-error');
-        const successDiv = document.getElementById('payment-captcha-success');
-
-        if (!accessToken) {
-            updatePaymentStatus('⚠️ Please complete login first', 'warning');
-            return;
-        }
-
-        if (captchaInput.length < 6) {
-            errorDiv.textContent = 'Please enter the 6-digit captcha';
-            errorDiv.style.display = 'block';
-            return;
-        }
-
-        try {
-            const verifyBtn = document.getElementById('verify-payment-captcha-btn');
-            verifyBtn.disabled = true;
-            verifyBtn.textContent = 'Verifying...';
-            
-            errorDiv.style.display = 'none';
-            successDiv.style.display = 'none';
-
-            const result = await customFetch(API_ENDPOINTS.payment.verifyCaptcha, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'language': 'en',
-                    'Authorization': `Bearer ${accessToken}`
-                },
-                body: {
-                    captcha_id: paymentData.captchaId,
-                    captcha_input: captchaInput
-                }
-            });
-
-            if (result.status_code === 200) {
-                paymentData.captchaVerified = true;
-                successDiv.style.display = 'block';
-                updatePaymentStatus('✅ Captcha verified successfully!', 'success');
-                checkPaymentReadiness();
-            } else {
-                paymentData.captchaVerified = false;
-                errorDiv.textContent = result.message || 'Captcha verification failed';
-                errorDiv.style.display = 'block';
-                // Automatically reload captcha after failed verification
-                setTimeout(generatePaymentCaptcha, 1000);
-            }
-        } catch (error) {
-            paymentData.captchaVerified = false;
-            errorDiv.textContent = `Error: ${error.message}`;
-            errorDiv.style.display = 'block';
-        } finally {
-            const verifyBtn = document.getElementById('verify-payment-captcha-btn');
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = 'Verify';
-        }
-    }
-
     async function sendPaymentOTP(resend = 0) {
         const accessToken = document.getElementById('payment-access-token').value.trim();
         if (!accessToken) {
@@ -2333,7 +2243,7 @@ async function generatePaymentCaptcha() {
         if (!selectedDate) return;
 
         const accessToken = document.getElementById('payment-access-token').value.trim();
-        updatePaymentStatus('🔄 Loading times...', 'info');
+        updatePaymentStatus('🔄 Loading times and captcha...', 'info');
 
         try {
             const result = await customFetch('/api/v2/payment/pay-slot-time', {
@@ -2348,17 +2258,42 @@ async function generatePaymentCaptcha() {
                 }
             });
 
-            if (result.status_code === 200 && result.data && result.data.slot_times) {
-                paymentData.slotTimes = result.data.slot_times;
-                populateAppointmentTimes(result.data.slot_times);
-                updatePaymentStatus('✅ Times loaded!', 'success');
+            if (result.status_code === 200 && result.data) {
+                // Get slot times
+                if (result.data.slot_times) {
+                    paymentData.slotTimes = result.data.slot_times;
+                    populateAppointmentTimes(result.data.slot_times);
+                }
 
-                // NEW: Show captcha section after date/time selection
-                // And automatically generate captcha
-                const captchaSection = document.getElementById('payment-captcha-section');
-                if (captchaSection) {
-                    captchaSection.style.display = 'block';
-                    generatePaymentCaptcha();
+                // IMPORTANT: Get captcha from the same response
+                if (result.data.captcha) {
+                    paymentData.captchaImage = result.data.captcha.captcha_image;
+                    paymentData.captchaId = result.data.captcha.captcha_id;
+                    paymentData.captchaVerified = false;
+
+                    // Display the captcha
+                    const captchaSection = document.getElementById('payment-captcha-section');
+                    const captchaImg = document.getElementById('payment-captcha-image');
+                    const placeholder = document.getElementById('payment-captcha-placeholder');
+                    
+                    if (captchaSection) {
+                        captchaSection.style.display = 'block';
+                    }
+                    
+                    if (captchaImg && placeholder) {
+                        captchaImg.src = result.data.captcha.captcha_image;
+                        captchaImg.style.display = 'block';
+                        placeholder.style.display = 'none';
+                    }
+
+                    // Clear previous input
+                    document.getElementById('payment-captcha-input').value = '';
+                    document.getElementById('payment-captcha-error').style.display = 'none';
+                    document.getElementById('payment-captcha-success').style.display = 'none';
+
+                    updatePaymentStatus('✅ Times and captcha loaded!', 'success');
+                } else {
+                    updatePaymentStatus('✅ Times loaded!', 'success');
                 }
             }
         } catch (error) {
@@ -2378,20 +2313,190 @@ async function generatePaymentCaptcha() {
             timeSelect.appendChild(option);
         });
 
-        // Enable input for captcha when time is selected
-        timeSelect.addEventListener('change', () => {
-            if (timeSelect.value) {
-                const captchaSection = document.getElementById('payment-captcha-section');
-                if (captchaSection) {
-                    captchaSection.style.display = 'block';
-                    // Auto-generate captcha if not already loaded
-                    if (!paymentData.captchaImage) {
-                        generatePaymentCaptcha();
-                    }
+        // Check payment readiness when time is selected
+        timeSelect.addEventListener('change', checkPaymentReadiness);
+    }
+
+    async function refreshPaymentCaptcha() {
+        const accessToken = document.getElementById('payment-access-token').value.trim();
+        const selectedDate = document.getElementById('appointment-date').value;
+        
+        if (!accessToken) {
+            updatePaymentStatus('⚠️ Please complete login first', 'warning');
+            return;
+        }
+
+        if (!selectedDate) {
+            updatePaymentStatus('⚠️ Please select a date first', 'warning');
+            return;
+        }
+
+        try {
+            updatePaymentStatus('🔄 Refreshing captcha...', 'info');
+            
+            // Call the slot-time endpoint again to get fresh captcha
+            const result = await customFetch('/api/v2/payment/pay-slot-time', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'language': 'en',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: {
+                    appointment_date: selectedDate
                 }
+            });
+
+            if (result.status_code === 200 && result.data && result.data.captcha) {
+                paymentData.captchaImage = result.data.captcha.captcha_image;
+                paymentData.captchaId = result.data.captcha.captcha_id;
+                paymentData.captchaVerified = false;
+
+                const captchaImg = document.getElementById('payment-captcha-image');
+                if (captchaImg) {
+                    captchaImg.src = result.data.captcha.captcha_image;
+                }
+
+                document.getElementById('payment-captcha-input').value = '';
+                document.getElementById('payment-captcha-error').style.display = 'none';
+                document.getElementById('payment-captcha-success').style.display = 'none';
+
+                updatePaymentStatus('✅ Captcha refreshed!', 'info');
                 checkPaymentReadiness();
             }
-        });
+        } catch (error) {
+            updatePaymentStatus(`❌ Error refreshing captcha: ${error.message}`, 'error');
+        }
+    }
+
+    // OCR Function
+    async function attemptCaptchaOCR() {
+        const captchaImg = document.getElementById('payment-captcha-image');
+        const autoReadBtn = document.getElementById('auto-read-captcha');
+        
+        if (!captchaImg || !captchaImg.src) {
+            updatePaymentStatus('⚠️ No captcha image loaded', 'warning');
+            return;
+        }
+
+        try {
+            autoReadBtn.disabled = true;
+            autoReadBtn.textContent = '⏳ Reading...';
+            updatePaymentStatus('🔄 Attempting to read captcha with OCR...', 'info');
+            
+            // Load Tesseract.js if not already loaded
+            if (!window.Tesseract) {
+                updatePaymentStatus('🔄 Loading OCR library (first time only, ~2MB)...', 'info');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+                await new Promise((resolve, reject) => {
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                ocrControl.loaded = true;
+            }
+
+            ocrControl.processing = true;
+            
+            const { data: { text } } = await Tesseract.recognize(
+                captchaImg.src,
+                'eng',
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const progress = Math.round(m.progress * 100);
+                            autoReadBtn.textContent = `⏳ ${progress}%`;
+                        }
+                    }
+                }
+            );
+
+            // Clean the text (remove spaces, newlines, special chars, keep only alphanumeric)
+            const cleanedText = text.replace(/[^a-zA-Z0-9]/g, '').substring(0, 6);
+            
+            if (cleanedText.length === 6) {
+                document.getElementById('payment-captcha-input').value = cleanedText;
+                updatePaymentStatus('✅ Captcha read: "' + cleanedText + '". Please verify it\'s correct before submitting.', 'success');
+                
+                // Enable verify button
+                document.getElementById('verify-payment-captcha-btn').disabled = false;
+                document.getElementById('verify-payment-captcha-btn').style.background = '#28a745';
+            } else if (cleanedText.length > 0) {
+                document.getElementById('payment-captcha-input').value = cleanedText;
+                updatePaymentStatus(`⚠️ OCR read "${cleanedText}" (${cleanedText.length} chars). Please check and correct if needed.`, 'warning');
+            } else {
+                updatePaymentStatus('⚠️ Could not read captcha clearly. Please enter manually.', 'warning');
+            }
+        } catch (error) {
+            updatePaymentStatus('⚠️ OCR failed. Please enter captcha manually.', 'warning');
+            console.error('OCR Error:', error);
+        } finally {
+            ocrControl.processing = false;
+            autoReadBtn.disabled = false;
+            autoReadBtn.textContent = '🤖 Auto Read';
+        }
+    }
+
+    async function verifyPaymentCaptcha() {
+        const accessToken = document.getElementById('payment-access-token').value.trim();
+        const captchaInput = document.getElementById('payment-captcha-input').value.trim();
+        const errorDiv = document.getElementById('payment-captcha-error');
+        const successDiv = document.getElementById('payment-captcha-success');
+
+        if (!accessToken) {
+            updatePaymentStatus('⚠️ Please complete login first', 'warning');
+            return;
+        }
+
+        if (captchaInput.length < 6) {
+            errorDiv.textContent = 'Please enter the 6-digit captcha';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const verifyBtn = document.getElementById('verify-payment-captcha-btn');
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
+            
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+
+            const result = await customFetch(API_ENDPOINTS.payment.verifyCaptcha, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'language': 'en',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: {
+                    captcha_id: paymentData.captchaId,
+                    captcha_input: captchaInput
+                }
+            });
+
+            if (result.status_code === 200) {
+                paymentData.captchaVerified = true;
+                successDiv.style.display = 'block';
+                updatePaymentStatus('✅ Captcha verified successfully!', 'success');
+                checkPaymentReadiness();
+            } else {
+                paymentData.captchaVerified = false;
+                errorDiv.textContent = result.message || 'Captcha verification failed. Refreshing...';
+                errorDiv.style.display = 'block';
+                // Automatically reload captcha after failed verification
+                setTimeout(refreshPaymentCaptcha, 1000);
+            }
+        } catch (error) {
+            paymentData.captchaVerified = false;
+            errorDiv.textContent = `Error: ${error.message}`;
+            errorDiv.style.display = 'block';
+        } finally {
+            const verifyBtn = document.getElementById('verify-payment-captcha-btn');
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify';
+        }
     }
 
     async function getPaymentSlotTime() {
@@ -2441,14 +2546,6 @@ async function generatePaymentCaptcha() {
         timeSelect.value = defaultTime;
         timeSelect.disabled = false;
         updatePaymentStatus(`✅ Default slot set: ${defaultTime}`, 'info');
-        
-        // Show and generate captcha
-        const captchaSection = document.getElementById('payment-captcha-section');
-        if (captchaSection) {
-            captchaSection.style.display = 'block';
-            generatePaymentCaptcha();
-        }
-        
         checkPaymentReadiness();
     }
 
@@ -2484,14 +2581,6 @@ async function generatePaymentCaptcha() {
         timeSelect.disabled = false;
 
         updatePaymentStatus(`✅ Default date & time set: ${defaultDateString} at ${defaultTime}`, 'success');
-        
-        // Show and generate captcha
-        const captchaSection = document.getElementById('payment-captcha-section');
-        if (captchaSection) {
-            captchaSection.style.display = 'block';
-            generatePaymentCaptcha();
-        }
-        
         checkPaymentReadiness();
     }
 
@@ -2500,7 +2589,7 @@ async function generatePaymentCaptcha() {
         const appointmentTime = document.getElementById('appointment-time').value;
         const accessToken = document.getElementById('payment-access-token').value;
 
-        // NEW: Check captcha verification instead of Turnstile token
+        // Check captcha verification
         const isReady = appointmentDate && appointmentTime && accessToken && paymentData.captchaVerified;
 
         const payNowBtn = document.getElementById('pay-now-btn');
@@ -2541,7 +2630,7 @@ async function generatePaymentCaptcha() {
                 appointment_date: appointmentDate,
                 appointment_time: appointmentTime,
                 selected_payment: paymentMethod,
-                [captchaFieldName]: paymentData.captchaId  // Use captcha_id instead of token
+                [captchaFieldName]: paymentData.captchaId  // Use captcha_id
             };
 
             const result = await customFetch(apiEndpoint, {
